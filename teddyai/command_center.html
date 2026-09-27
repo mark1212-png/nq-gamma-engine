@@ -1,0 +1,1695 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>TeddyAI — Terminal</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+/* ---------------------------------------------------------------------------
+   TeddyAI Terminal. The sheet's design system (build.py HEAD) on a dense,
+   three-column terminal layout: Archivo for headings, IBM Plex for text and
+   numbers, 1px rules, 3px radii, no shadows. Three themes on the same tokens:
+     Garden -- light: the 'Vintage Garden' palette (warm greys, taupe, tan accent, olive, charcoal)
+     Slate  -- dark
+     Dusk   -- dark: the lake-at-dusk palette (near-black, deep navy, steel blue, taupe, warm grey)
+   With no choice made the page follows the OS (Garden by day, Slate at night). 'sheet' is kept as
+   an alias of Garden so a saved choice from the old page still resolves.
+   --------------------------------------------------------------------------- */
+:root,[data-theme="garden"],[data-theme="sheet"]{
+  --ground:#EAEAE7;--panel:#F6F5F2;--panel2:#E2DDD6;--ink:#393835;--ink2:#646355;--ink3:#A59083;
+  --rule:#D3C6BC;--rule2:#B9AA9D;--brass:#9E7E67;--brassx:#EADFD5;
+  --neg:#A85A45;--negx:#EED9D1;--pos:#5F7F52;--posx:#DBE1D3;--warn:#8F6E3A;--vio:#6E6A85;--sel:#E2DDD6;
+  color-scheme:light;
+}
+[data-theme="slate"]{
+  --ground:#0E1219;--panel:#141A23;--panel2:#1B2330;--ink:#E6ECF3;--ink2:#A6B3C2;--ink3:#6F7E90;
+  --rule:#232D3B;--rule2:#314050;--brass:#E0A84A;--brassx:#3A2E14;
+  --neg:#F0706A;--negx:#3D1F1F;--pos:#4FD1B0;--posx:#11332C;--warn:#E3BC55;--vio:#A9A0F0;--sel:#1F2A38;
+  color-scheme:dark;
+}
+[data-theme="dusk"]{
+  --ground:#0A1116;--panel:#0E1B25;--panel2:#0B2F45;--ink:#E8E1DE;--ink2:#C8BEBD;--ink3:#8B7D6D;
+  --rule:#173747;--rule2:#2B5D7B;--brass:#C9A97C;--brassx:#2A2A22;
+  --neg:#D67D6F;--negx:#3A2320;--pos:#6CB59E;--posx:#12342F;--warn:#D6B36F;--vio:#7FB3D5;--sel:#123243;
+  color-scheme:dark;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme]){
+  --ground:#0E1219;--panel:#141A23;--panel2:#1B2330;--ink:#E6ECF3;--ink2:#A6B3C2;--ink3:#6F7E90;
+  --rule:#232D3B;--rule2:#314050;--brass:#E0A84A;--brassx:#3A2E14;
+  --neg:#F0706A;--negx:#3D1F1F;--pos:#4FD1B0;--posx:#11332C;--warn:#E3BC55;--vio:#A9A0F0;--sel:#1F2A38;
+  color-scheme:dark;
+}}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{margin:0;background:var(--ground);color:var(--ink);
+  font:13px/1.5 "IBM Plex Sans",-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;-webkit-font-smoothing:antialiased}
+.mono,.num{font-family:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,monospace;font-variant-numeric:tabular-nums}
+h1,h2,h3,h4{font-family:Archivo,Helvetica,Arial,sans-serif;margin:0}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+input,select{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--brass);outline-offset:2px}
+.lbl{font-size:10px;letter-spacing:.09em;text-transform:uppercase;color:var(--ink3);font-weight:600}
+.pos{color:var(--pos)}.neg{color:var(--neg)}.brass{color:var(--brass)}.warn{color:var(--warn)}.vio{color:var(--vio)}.dim{color:var(--ink3)}
+.ops{font-size:11.5px;line-height:1.45}.ops h5{font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink3);margin:8px 0 3px}.ops h5:first-child{margin-top:0}
+.ops .row{display:grid;grid-template-columns:10px 1fr auto;gap:0 7px;align-items:baseline;padding:2px 0;border-bottom:1px dotted var(--rule)}.ops .row:last-child{border:0}
+.ops .dot{width:7px;height:7px;border-radius:4px;background:var(--ink3);display:inline-block;position:relative;top:-1px}.ops .dot.ok{background:var(--pos)}.ops .dot.bad{background:var(--neg)}.ops .dot.warn{background:var(--warn)}
+.ops .k{font-weight:600}.ops .d{color:var(--ink2);font-size:11px}.ops .age{font-family:var(--mono);font-size:10.5px;color:var(--ink3);white-space:nowrap}.ops .age.bad{color:var(--neg);font-weight:700}
+.ops .ledger{font-family:var(--mono);font-size:10.5px;color:var(--ink2);white-space:pre-wrap;word-break:break-word}
+/* the stack's own state, above the service rows: on 2026-09-16 the scheduler was stopped for 22 h and the only sign of it was one grey dot in a list of seven (2026-09-17) */
+.ops .top{display:flex;gap:8px;align-items:baseline;flex-wrap:wrap;margin:0 0 9px;padding:6px 8px;border:1px solid var(--rule);border-left-width:3px;border-radius:3px}
+.ops .top .st{font-weight:700;font-size:10px;letter-spacing:.07em;white-space:nowrap}
+.ops .top .ln{color:var(--ink2);font-size:11px}
+.ops .top.ok{border-left-color:var(--pos)}.ops .top.ok .st{color:var(--pos)}
+.ops .top.warn{border-left-color:var(--warn)}.ops .top.warn .st{color:var(--warn)}
+.ops .top.bad{border-left-color:var(--neg);border-color:var(--neg)}.ops .top.bad .st{color:var(--neg)}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+
+/* ---------- loading ---------- */
+#boot{position:fixed;inset:0;z-index:50;background:var(--ground);display:grid;place-items:center;transition:opacity .45s,visibility .45s}
+#boot.done{opacity:0;visibility:hidden}
+.boot-card{width:min(460px,92vw)}
+.boot-card h1{font-size:34px;font-weight:800;letter-spacing:-.022em;line-height:1}
+.boot-card h1 span{color:var(--brass)}
+.boot-sub{color:var(--ink2);margin:8px 0 26px;font-size:13.5px}
+.boot-sub b{color:var(--ink);font-weight:600}
+.boot-line{height:2px;background:var(--rule);overflow:hidden;margin-bottom:20px}
+.boot-line i{display:block;height:100%;width:0;background:var(--brass);transition:width .4s}
+.steps{list-style:none;margin:0;padding:0;display:grid;gap:9px}
+.steps li{display:flex;align-items:center;gap:12px;color:var(--ink3);font-size:14px;transition:color .3s}
+.steps li .tick{width:18px;height:18px;border-radius:50%;border:1.5px solid var(--rule2);display:grid;place-items:center;flex:none}
+.steps li .tick svg{width:10px;height:10px;stroke:currentColor;stroke-width:2.6;fill:none;stroke-linecap:round;stroke-linejoin:round;opacity:0}
+.steps li.run{color:var(--ink)}
+.steps li.run .tick{border-color:var(--brass);border-top-color:transparent;animation:spin .8s linear infinite}
+.steps li.ok{color:var(--ink2)}
+.steps li.ok .tick{background:var(--pos);border-color:var(--pos);color:var(--panel)}
+.steps li.ok .tick svg{opacity:1}
+.steps li.fail{color:var(--neg)}.steps li.fail .tick{border-color:var(--neg)}
+.steps li.skip{color:var(--ink3)}.steps li.skip .tick{border-style:dashed}
+.steps li small{margin-left:auto;color:var(--ink3);font-size:12px}
+.boot-fail{margin-top:18px;font-size:13px;color:var(--ink2);background:var(--panel);border:1px solid var(--rule);border-left:3px solid var(--neg);padding:10px 14px;display:none;white-space:pre-wrap}
+@keyframes spin{to{transform:rotate(360deg)}}
+@keyframes pulse{50%{opacity:.3}}
+
+/* ---------- app bar ---------- */
+.appbar{position:sticky;top:0;z-index:20;display:flex;align-items:center;gap:6px;height:44px;padding:0 12px;background:var(--panel);border-bottom:1px solid var(--rule)}
+.brand{font-family:Archivo,sans-serif;font-weight:800;font-size:16px;letter-spacing:-.02em;margin-right:14px;white-space:nowrap}
+.brand span{color:var(--brass)}
+.tabs{display:flex;gap:2px;height:100%}
+.tabs button{position:relative;padding:0 14px;height:100%;font-family:Archivo,sans-serif;font-weight:600;font-size:12.5px;color:var(--ink3);letter-spacing:.01em}
+.tabs button:hover{color:var(--ink)}
+.tabs button.on{color:var(--ink)}
+.tabs button.on::after{content:"";position:absolute;left:10px;right:10px;bottom:-1px;height:2px;background:var(--brass)}
+.tabs button kbd{font:inherit;font-size:10px;color:var(--ink3);margin-left:6px;opacity:.7}
+.spacer{flex:1}
+.procs{display:flex;gap:4px;flex-wrap:nowrap}
+.procs .p{display:inline-flex;align-items:center;gap:5px;font-size:10px;letter-spacing:.06em;text-transform:uppercase;font-weight:600;color:var(--ink3);padding:3px 7px;border:1px solid var(--rule);border-radius:2px}
+.procs .p em{width:6px;height:6px;border-radius:50%;background:var(--rule2);font-style:normal}
+.procs .p.run{color:var(--ink)}.procs .p.run em{background:var(--brass);animation:pulse 1s infinite}
+.procs .p.ok em{background:var(--pos)}.procs .p.fail{color:var(--neg);border-color:var(--neg)}.procs .p.fail em{background:var(--neg)}
+.procs .p.skip em{background:transparent;border:1px dashed var(--ink3)}
+.btn{font-family:Archivo,sans-serif;font-weight:700;font-size:11.5px;padding:6px 11px;border-radius:2px;white-space:nowrap;display:inline-flex;align-items:center;
+  background:var(--ink);color:var(--ground);border:1px solid var(--ink)}
+.btn.alt{background:var(--panel);color:var(--ink);border-color:var(--rule2)}
+.btn:hover{filter:brightness(1.08)}.btn.alt:hover{background:var(--panel2)}
+/* Update Plan while a request is out: outlined, not filled -- it is waiting on someone, not doing work */
+.btn.waiting{background:var(--panel);color:var(--brass,var(--ink2));border-color:var(--brass,var(--rule2));border-style:dashed}
+.btn.waiting kbd{border-color:currentColor;color:currentColor;opacity:.8}
+.btn[disabled]{opacity:.45;cursor:default;filter:none}
+.btn kbd{font:inherit;font-weight:500;opacity:.6;margin-left:6px}
+.ib{display:inline-grid;place-items:center;width:30px;height:30px;border-radius:2px;border:1px solid var(--rule2);background:var(--panel)}
+.ib:hover{background:var(--panel2)}
+.ib.stop:hover{color:var(--neg);border-color:var(--neg)}
+.ib.stop.armed{width:auto;padding:0 9px;gap:6px;grid-auto-flow:column;color:var(--neg);border-color:var(--neg);
+  font:600 10px/1 ui-monospace,monospace;letter-spacing:.08em;text-transform:uppercase}
+.ib.stop.armed::after{content:attr(data-arm)}
+/* the page after the services are gone: say so, rather than let every panel decay into a feed error */
+#gone{position:fixed;inset:0;z-index:900;display:none;place-items:center;background:var(--ground);text-align:center}
+#gone.on{display:grid}
+#gone h2{font:600 15px/1.4 ui-monospace,monospace;letter-spacing:.06em;text-transform:uppercase;color:var(--ink);margin:0 0 10px}
+#gone p{font-size:12px;color:var(--ink2);margin:0;max-width:44ch}
+#gone code{color:var(--ink);border:1px solid var(--rule2);padding:1px 5px;border-radius:2px}
+.ib svg{width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.chip{display:inline-flex;align-items:center;gap:6px;font-size:10px;letter-spacing:.08em;text-transform:uppercase;font-weight:600;color:var(--ink2);
+  border:1px solid var(--rule2);padding:3px 8px 3px 7px;border-radius:2px;white-space:nowrap}
+.chip i{width:7px;height:7px;border-radius:50%;background:var(--ink3)}
+.chip.live i{background:var(--pos);box-shadow:0 0 0 3px var(--posx)}
+.chip.replay i{background:var(--brass);animation:pulse 1s infinite}
+.chip.stale i{background:var(--warn)}
+.chip.off i,.chip.sim i{background:var(--neg)}
+@media(max-width:1100px){.procs{display:none}}
+
+/* ---------- quote band ---------- */
+.quote{display:flex;align-items:stretch;background:var(--panel);border-bottom:1px solid var(--rule);overflow-x:auto;scrollbar-width:none}
+.quote::-webkit-scrollbar{display:none}
+.q{flex:none;padding:8px 13px;border-right:1px solid var(--rule);display:flex;flex-direction:column;justify-content:center;white-space:nowrap;min-width:0}
+.q:last-child{border-right:0}
+.q .v{font-size:16px;font-weight:600;letter-spacing:-.01em;line-height:1.2}
+.q .n{font-size:11px;color:var(--ink3);margin-top:1px}
+.q.sym{border-left:3px solid var(--brass);padding-left:13px}
+.q.sym .v{font-family:Archivo,sans-serif;font-weight:800;font-size:19px;letter-spacing:-.02em}
+.q.sym .n{color:var(--ink2)}
+.q.last{flex-direction:row;align-items:baseline;gap:12px}
+.q.last .v{font-size:28px;font-weight:600;letter-spacing:-.02em}
+.q.last .chg{font-size:14px;font-weight:600}
+.q.live{gap:4px}
+.q.live .row{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--ink2)}
+.q.sess{margin-left:auto;align-items:flex-end}
+.q .v.sm{font-size:14.5px}
+
+/* ---------- views ---------- */
+.view{display:none;padding:10px;gap:10px}
+.view.on{display:grid}
+#v-terminal{grid-template-columns:340px minmax(0,1fr) 400px}
+#v-ladder{grid-template-columns:minmax(0,1fr) 420px;align-items:start}
+#v-plan{grid-template-columns:minmax(0,1fr);max-width:1180px;margin:0 auto;width:100%}
+.col{display:flex;flex-direction:column;gap:10px;min-width:0}
+@media(max-width:1380px){#v-terminal{grid-template-columns:310px minmax(0,1fr) 372px}}
+@media(max-width:1180px){#v-terminal{grid-template-columns:minmax(0,1fr) 380px}#v-terminal .col.l{grid-column:1/-1;display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr))}#v-ladder{grid-template-columns:1fr}}
+@media(max-width:860px){#v-terminal{grid-template-columns:1fr}#v-terminal .col.l{grid-template-columns:1fr}}
+
+/* ---------- panels ---------- */
+.panel{background:var(--panel);border:1px solid var(--rule);border-radius:3px;min-width:0;display:flex;flex-direction:column}
+.ph{display:flex;align-items:center;gap:10px;padding:7px 12px;border-bottom:1px solid var(--rule);min-height:34px;flex-wrap:wrap}
+.ph h3{font-size:12.5px;font-weight:700;letter-spacing:-.005em;white-space:nowrap}
+.ph .right{margin-left:auto;display:flex;gap:6px;align-items:center;flex-wrap:wrap;justify-content:flex-end}
+.ph .meta{font-size:10.5px;color:var(--ink3);letter-spacing:.02em;margin-left:auto;text-align:right;line-height:1.35}
+.ph .meta.left{margin-left:0}
+.pb{padding:10px 12px}
+.w .ph{cursor:grab;flex-wrap:nowrap}
+.w.drag{opacity:.4}
+.w .ph button.hide{font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink3);margin-left:auto}
+.w .ph button.hide:hover{color:var(--ink)}
+.w.hidden{display:none}
+.kv{display:grid;grid-template-columns:1fr auto;gap:0 12px;font-size:12.5px}
+.kv>div{padding:5px 0;border-bottom:1px solid var(--rule);display:flex;align-items:baseline;min-width:0}
+.kv>div:nth-last-child(-n+2){border-bottom:0}
+.kv .k{color:var(--ink2)}
+.kv .k small{color:var(--ink3);margin-left:6px;font-size:10.5px}
+.kv .v{justify-content:flex-end;font-weight:600;white-space:nowrap}
+.kv .v small{font-weight:500;color:var(--ink3);margin-left:6px;font-size:11px}
+.tools{display:flex;gap:1px;border:1px solid var(--rule);border-radius:2px;background:var(--ground);padding:1px}
+.tools button{font-size:10.5px;letter-spacing:.05em;text-transform:uppercase;font-weight:600;color:var(--ink3);padding:3px 8px;border-radius:2px;line-height:1.4}
+.tools button:hover{color:var(--ink)}.tools button.on{background:var(--panel2);color:var(--ink)}
+.tools button[disabled]{opacity:.4;cursor:default}
+.note{font-size:13px;color:var(--ink2);line-height:1.6}
+.note b{color:var(--ink)}
+.callout{border-left:3px solid var(--brass);padding:10px 14px;background:var(--panel);border:1px solid var(--rule);border-left-width:3px;border-radius:2px}
+.callout.w{border-left-color:var(--neg)}.callout.v{border-left-color:var(--vio)}
+ul.t{margin:0;padding-left:18px;display:grid;gap:7px;font-size:12.5px;color:var(--ink2);line-height:1.55}
+ul.t li::marker{color:var(--brass)}
+ul.t b{color:var(--ink)}
+ul.t.two{grid-template-columns:1fr 1fr;gap:7px 28px}
+@media(max-width:900px){ul.t.two{grid-template-columns:1fr}}
+
+/* chart */
+.chart-wrap{position:relative;height:440px;background:var(--panel);border-top:0}
+.chart-wrap.tall{height:min(760px,calc(100vh - 200px))}
+@media(max-width:700px){.chart-wrap{height:320px}}
+canvas{display:block;width:100%;height:100%}
+.legend{position:absolute;left:12px;top:8px;display:flex;gap:12px;font-size:10.5px;color:var(--ink3);pointer-events:none;letter-spacing:.04em}
+.legend b{display:inline-block;width:14px;height:0;border-top:2px solid;vertical-align:middle;margin-right:5px}
+.ctabs{display:flex;gap:0;height:100%}
+.ctabs button{padding:0 11px;height:34px;margin:-7px 0;font-size:12px;font-weight:600;color:var(--ink3);border-bottom:2px solid transparent;white-space:nowrap}
+.ctabs button.on{color:var(--ink);border-bottom-color:var(--brass)}
+.split{display:grid;grid-template-columns:minmax(300px,2fr) minmax(0,3fr);gap:10px}
+@media(max-width:1000px){.split{grid-template-columns:1fr}}
+
+/* key levels table */
+table.lv{width:100%;border-collapse:collapse;font-size:12px}
+table.lv th{text-align:left;font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink3);font-weight:600;padding:4px 6px;border-bottom:1px solid var(--rule)}
+table.lv td{padding:4.5px 6px;border-bottom:1px solid var(--rule);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+table.lv{table-layout:fixed}
+table.lv col.c1{width:31%}table.lv col.c2{width:22%}table.lv col.c3{width:13%}table.lv col.c4{width:34%}
+table.lv tr:last-child td{border-bottom:0}
+table.lv td.r,table.lv th.r{text-align:right}
+table.lv td.t{font-weight:600}
+table.lv tr.here td{background:var(--sel)}
+table.lv tr.here td:first-child{box-shadow:inset 3px 0 0 var(--ink)}
+table.lv td .sw{display:inline-block;width:8px;height:8px;border-radius:1px;margin-right:7px;vertical-align:-1px}
+table.lv td.note{font-size:11.5px;color:var(--ink3)}
+
+/* game plan cards */
+.plan{display:flex;flex-direction:column;gap:10px}
+.pl{background:var(--panel);border:1px solid var(--rule);border-radius:3px;display:flex;flex-direction:column;position:relative;min-width:0}
+.pl.pri{border-color:var(--brass)}
+.pl.long{border-left:3px solid var(--pos)}.pl.short{border-left:3px solid var(--neg)}
+.pl .hd{padding:9px 12px;display:flex;align-items:flex-start;gap:10px;border-bottom:1px solid var(--rule)}
+.pl .hd .ltr{font-family:Archivo,sans-serif;font-weight:800;font-size:15px;line-height:1;padding:3px 0 0}
+.pl .hd h3{font-size:13px;font-weight:700;line-height:1.25}
+.pl .hd .tg{font-size:11.5px;color:var(--ink2);margin-top:2px;line-height:1.4}
+.pl .hd .tg b{color:var(--ink)}
+.pl .hd .side{font-size:10px;letter-spacing:.08em;text-transform:uppercase;font-weight:700;margin-right:6px}
+.pl .hd .rank{font-size:10px;letter-spacing:.08em;text-transform:uppercase;font-weight:600;color:var(--ink3)}
+.badge{margin-left:auto;flex:none;font-size:10px;letter-spacing:.07em;text-transform:uppercase;font-weight:700;padding:3px 8px;border-radius:2px;border:1px solid var(--rule);color:var(--ink3);background:var(--panel2);white-space:nowrap}
+.badge.active{border-color:var(--brass);color:var(--brass);background:var(--brassx)}
+.badge.played{border-color:var(--pos);color:var(--pos);background:var(--posx)}
+.badge.invalid{border-color:var(--neg);color:var(--neg);background:var(--negx)}
+.badge.tested{border-style:dashed;border-color:var(--brass);color:var(--brass)}
+.lvls{display:grid;grid-template-columns:repeat(5,1fr);border-bottom:1px solid var(--rule)}
+.lvls>div{padding:7px 10px;border-right:1px solid var(--rule);min-width:0}
+.lvls>div:last-child{border-right:0}
+.lvls .k{font-size:9.5px;letter-spacing:.09em;text-transform:uppercase;color:var(--ink3);font-weight:600}
+.lvls .p{font-size:13.5px;font-weight:600;margin-top:1px;white-space:nowrap}
+.lvls .d{font-size:10.5px;color:var(--ink3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lvls .hit .p{color:var(--pos)}.lvls .hit.stop .p{color:var(--neg)}
+.lvls .miss .p{color:var(--ink3);font-weight:500}
+.chk{padding:6px 12px 8px;display:grid;gap:3px}
+.chk .row{display:grid;grid-template-columns:16px 1fr auto auto;gap:0 10px;align-items:center;font-size:11.5px;color:var(--ink3)}
+.chk .row .ic{width:12px;height:12px;border-radius:50%;border:1.5px solid var(--rule2);display:grid;place-items:center}
+.chk .row .ic svg{width:8px;height:8px;stroke:currentColor;stroke-width:3;fill:none;stroke-linecap:round;stroke-linejoin:round;display:none}
+.chk .row.done{color:var(--ink)}
+.chk .row.done .ic{background:var(--pos);border-color:var(--pos);color:var(--panel)}
+.chk .row.done .ic svg{display:block}
+.chk .row.bad{color:var(--neg)}
+.chk .row.bad .ic{background:var(--neg);border-color:var(--neg);color:var(--panel)}
+.chk .row.bad .ic svg{display:block}
+.chk .row.wait .ic{border-color:var(--brass);border-top-color:transparent;animation:spin 1.2s linear infinite}
+.chk .row.test{color:var(--ink)}
+.chk .row.test .ic{border-style:dashed;border-color:var(--brass);color:var(--brass)}
+.chk .row.test .ic svg{display:block}
+.chk .row .px{color:inherit;opacity:.85}
+.chk .row .at{font-size:11px;min-width:42px;text-align:right}
+.pl .wy{padding:9px 12px 10px;border-top:1px solid var(--rule);font-size:12.5px;color:var(--ink2);background:var(--panel2);line-height:1.55}
+.pl .wy b{color:var(--ink)}
+.pl .prog{height:3px;background:var(--rule)}
+.pl .prog i{display:block;height:100%;background:var(--brass);width:0;transition:width .4s}
+.pl.short .prog i{background:var(--neg)}.pl.long .prog i{background:var(--pos)}
+#v-plan .plan{display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr))}
+
+/* exposure */
+.expo{position:relative;height:250px}
+.expo.auto{height:var(--h,300px)}
+.expo canvas{width:100%;height:100%}
+.expoFoot{display:flex;flex-wrap:wrap;gap:4px 14px;padding:6px 12px 8px;border-top:1px solid var(--rule);font-size:11px;color:var(--ink3)}
+.expoFoot b{color:var(--ink);font-weight:600}
+.expoFoot i{display:inline-block;width:10px;height:8px;vertical-align:-1px;margin-right:5px;background:var(--pos)}
+.expoFoot i.ghost{background:none;border:1px solid var(--ink3)}
+.expoFoot i.qqq{background:none;border:1px dashed var(--vio)}
+/* cross-reference (OPRA) panel: five books in one unit */
+.xr{display:grid;grid-template-columns:minmax(78px,auto) repeat(4,minmax(0,1fr));gap:1px 6px;font-size:10.5px;align-items:center}
+.xr .h{color:var(--ink3);font-size:10px;text-transform:uppercase;letter-spacing:.04em;text-align:right;padding-bottom:3px;border-bottom:1px solid var(--rule);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.xr .h:first-child{text-align:left}
+.xr .k{color:var(--ink2);white-space:nowrap}
+.xr .v{text-align:right;color:var(--ink)}
+.xr .sec{grid-column:1/-1;height:6px}
+.xrow{display:flex;flex-wrap:wrap;gap:4px 10px;font-size:11px;color:var(--ink2);margin-top:6px;align-items:baseline}
+.xrow .chip{font-size:10px}
+.eq{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+.eq .lbl{margin-bottom:4px}
+.eqg{display:grid;grid-template-columns:auto 1fr auto;gap:0 6px;font-size:10.5px;align-items:center}
+/* gamma ladders (2026-09-06): NQ · QQQ · SPX cx · SPY on one %-from-spot axis, live, under the chart */
+.xl-wrap{resize:vertical;overflow:auto;height:var(--xlh,300px);min-height:90px;position:relative;border-top:1px solid var(--rule)}
+.xl-wrap::-webkit-resizer{background:linear-gradient(135deg,transparent 50%,var(--ink3) 50%,var(--ink3) 60%,transparent 60%,transparent 75%,var(--ink3) 75%,var(--ink3) 85%,transparent 85%)}
+.xl{display:grid;grid-template-columns:46px repeat(4,minmax(0,1fr));font-size:var(--xlf,10.5px)}
+.xl>div{height:var(--xlr,16px);line-height:var(--xlr,16px);min-width:0}
+.xl .h{position:sticky;top:0;z-index:1;height:auto;line-height:1.35;background:var(--panel);padding:4px 6px 3px;border-bottom:1px solid var(--rule);color:var(--ink3);font-size:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.xl .h b{color:var(--ink);font-weight:600}
+.xl .h .nm{text-transform:uppercase;letter-spacing:.05em;font-weight:600;color:var(--ink2)}
+.xl .h .src{color:var(--ink3);font-size:9.5px}
+.xl .b{color:var(--ink3);text-align:right;padding-right:6px;font-size:calc(var(--xlf,10.5px) - 1px);border-right:1px solid var(--rule)}
+.xl .c{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:0 5px;align-items:center;padding:0 6px;border-left:1px solid var(--rule)}
+.xl .c:nth-child(5n+2){border-left:0}
+.xl .c .k{color:var(--ink3);white-space:nowrap}
+.xl .c .k.hv{color:var(--ink);font-weight:600}
+.xl .c .v{white-space:nowrap;text-align:right;min-width:38px}
+.xl .c .tb{position:relative;height:max(3px,calc(var(--xlr,16px) - 7px));background:var(--ground);border-radius:1px}
+.xl .c .tb:before{content:'';position:absolute;left:50%;top:0;bottom:0;border-left:1px solid var(--rule2)}
+.xl .c .tb i{position:absolute;top:0;bottom:0}
+.xl .r0{background-color:var(--panel2)}
+.xl .c.fl{background-image:repeating-linear-gradient(90deg,var(--warn) 0 4px,transparent 4px 7px);background-size:100% 1px;background-repeat:no-repeat;background-position:0 var(--fy,50%)}
+.xl .b.r0{color:var(--ink);font-weight:600}
+.xl .c .k.mixed{color:var(--neg)}
+.xl .c.wash2{position:relative}.xl .c.wash2:before{content:'';position:absolute;inset:0;background:var(--neg);opacity:.09;pointer-events:none}
+.xl .c .v.dim{color:var(--ink3)}
+.xl .c.top{background-color:var(--brassx);box-shadow:inset 3px 0 0 var(--brass),inset 0 1px 0 var(--brass),inset 0 -1px 0 var(--brass)}.xl .c.top .k{color:var(--brass)!important}
+.xl .h .brass{color:var(--brass)}
+.xl-exps{display:flex;flex-wrap:nowrap;overflow-x:auto;align-items:center;gap:4px;padding:5px 8px;border-top:1px solid var(--rule);font-size:10px;color:var(--ink3);scrollbar-width:thin}
+.xl-exps .lbl{letter-spacing:.08em;text-transform:uppercase;font-weight:700;margin-right:4px}
+.xl-exps button{font:inherit;font-size:10px;padding:2px 7px;border:1px solid var(--rule2);background:var(--panel);color:var(--ink2);border-radius:10px;cursor:pointer;white-space:nowrap}
+.xl-exps button.on{background:var(--brassx);color:var(--brass);border-color:var(--brass)}
+.xl-exps button.q{font-weight:700}
+.xl-exps button.act{border-radius:2px;color:var(--ink3)}
+.tools button.dimmed{opacity:.45}
+.xl .note{grid-column:2/-1;height:auto;line-height:1.5;padding:10px 12px;color:var(--ink3);font-size:11px;white-space:normal}
+.xl .c .note2{color:var(--ink3);font-size:10px;grid-column:1/-1;white-space:normal;line-height:1.35}
+
+/* the sheet's ladder, scoped -- its rules arrive from /cc/api/ladder */
+.sheet-ladder{min-width:0;overflow-x:auto;padding:6px 10px 10px}
+.log{font-family:"IBM Plex Mono",monospace;font-size:11px;color:var(--ink2);max-height:180px;overflow:auto;white-space:pre-wrap;margin:0;line-height:1.5}
+.tb{position:relative;height:13px;background:linear-gradient(var(--rule2),var(--rule2)) center/1px 100% no-repeat}
+.tb i{position:absolute;top:2px;height:9px;display:block}
+.chgt{display:grid;grid-template-columns:1fr auto auto auto auto;gap:0 8px;font-size:12px;align-items:center}
+.chgt>div{padding:4px 0;border-bottom:1px solid var(--rule)}
+.chgt>div:nth-last-child(-n+5){border-bottom:0}
+.chgt .k{color:var(--ink2)}
+
+/* drawer + toast */
+#drawer{position:fixed;top:0;right:0;bottom:0;width:320px;z-index:30;background:var(--panel);border-left:1px solid var(--rule2);
+  transform:translateX(100%);transition:transform .25s;padding:18px;overflow:auto;font-size:13px}
+#drawer.open{transform:none}
+#drawer h2{font-size:17px;margin-bottom:14px}
+#drawer h4{font-size:11px;letter-spacing:.09em;text-transform:uppercase;color:var(--ink3);margin:0 0 6px}
+#drawer section{margin-bottom:20px}
+#drawer label{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--rule);color:var(--ink2)}
+#drawer small{color:var(--ink3);font-size:11.5px}
+#drawer kbd{font-family:"IBM Plex Mono",monospace;font-size:11.5px;border:1px solid var(--rule2);border-radius:2px;padding:1px 6px;background:var(--panel2);color:var(--ink)}
+.themes{display:grid;grid-template-columns:1fr;gap:6px}
+.themes button{display:flex;align-items:center;gap:8px;padding:8px 10px;border:1px solid var(--rule2);border-radius:2px;font-size:12.5px;color:var(--ink2);text-align:left}
+.themes button.on{border-color:var(--brass);color:var(--ink)}
+.themes .sw{display:flex;gap:2px}
+.themes .sw i{width:10px;height:14px;border-radius:1px;display:block}
+select{background:var(--panel2);border:1px solid var(--rule2);border-radius:2px;padding:4px 8px}
+.toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:var(--ink);color:var(--ground);padding:9px 16px;border-radius:2px;
+  font-size:13px;opacity:0;transition:opacity .25s;pointer-events:none;z-index:40}
+.toast.show{opacity:1}
+/* ---------- detach: a view running in its own window (teddy_app.py) ---------- */
+.dt{display:inline-grid;place-items:center;width:26px;height:22px;border-radius:2px;flex:none}
+.dt:hover{background:var(--panel2)}
+.dt svg{width:13px;height:13px;stroke:var(--ink3);fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.dt:hover svg{stroke:var(--ink)}
+.dt.on svg{stroke:var(--brass)}
+.gone{display:grid;place-items:center;gap:12px;padding:36px 18px;text-align:center;color:var(--ink2);font-size:13px}
+.gone b{color:var(--ink)}
+/* drag a torn-out window back over the terminal: teddy_app.py raises this while
+   the window is over us, and docks the view when the button comes up */
+#dropHint{position:fixed;inset:0;z-index:60;display:grid;place-items:center;pointer-events:none}
+#dropHint::before{content:"";position:absolute;inset:0;background:var(--ground);opacity:.72}
+#dropHint .box{position:relative;border:2px dashed var(--brass);border-radius:4px;padding:20px 28px;
+  background:var(--panel);font-family:Archivo,sans-serif;font-weight:700;font-size:14px;color:var(--ink)}
+#dropHint .box small{display:block;font-family:"IBM Plex Sans",sans-serif;font-weight:400;font-size:12px;color:var(--ink3);margin-top:4px}
+/* a solo window: one view, no tabs, no pipeline controls */
+body.solo .tabs,body.solo .procs,body.solo #rerun,body.solo #rewrite{display:none}
+body.solo .appbar{height:38px}
+body.solo .view{padding:8px}
+body.solo #boot{display:none}
+.lle{font-size:12px;line-height:1.6}
+.lle p{margin:8px 0}.lle-meta{color:var(--ink3);font-size:11px}
+.lle-row{display:grid;grid-template-columns:1.2fr 1fr 1fr;gap:12px;padding:10px 0;border-top:1px solid var(--rule)}
+.lle-row small{display:block;color:var(--ink3);font-size:11px}
+.lle-material{color:var(--ink);border-bottom:2px solid var(--brass,#a59083)}
+.lle-warning{color:var(--ink);border-left:3px solid var(--brass,#a59083);padding-left:10px}
+.lle summary{cursor:pointer;color:var(--ink3);margin-top:8px}
+.lle-log{padding-left:20px;max-height:210px;overflow:auto}.lle-log li{padding:5px 0}
+.lle-log time{font-variant-numeric:tabular-nums;color:var(--ink3)}
+.lle-method p{color:var(--ink3);font-size:11px}
+#liveCommentary .panel{position:sticky;top:10px;max-height:calc(100vh - 140px)}
+#liveCommentary .ph{flex-shrink:0}
+#liveCommentary .lle{overflow:auto;overscroll-behavior:contain}
+#liveCommentary .lle-row{grid-template-columns:1fr 1fr;gap:6px 12px}
+#liveCommentary .lle-row>div:first-child{grid-column:1/-1}
+@media(max-width:1180px){#liveCommentary .panel{position:static;max-height:480px}}
+@media(max-width:700px){.lle-row{grid-template-columns:1fr}.lle-row small{display:inline;margin-left:6px}}
+
+</style>
+</head>
+<body>
+
+<div id="boot">
+  <div class="boot-card">
+    <h1>Teddy<span>AI</span></h1>
+    <p class="boot-sub" id="bootSub">Building the map</p>
+    <div class="boot-line"><i id="bootBar"></i></div>
+    <ul class="steps" id="bootSteps"></ul>
+    <div class="boot-fail" id="bootFail"></div>
+  </div>
+</div>
+
+<header class="appbar">
+  <div class="brand">Teddy<span>AI</span></div>
+  <nav class="tabs" id="tabs">
+    <button data-view="terminal" class="on">Terminal</button>
+    <button data-view="ladder">Gamma Ladder</button>
+    <button data-view="plan">Gameplan</button>
+  </nav>
+  <div class="spacer"></div>
+  <div class="procs" id="procs"></div>
+  <button class="btn alt" id="rerun" title="Refresh the numbers: pull (if a job window is open), verify, ladder, sheet. No API call — the plan text is left as it is.">Rebuild<kbd>r</kbd></button>
+  <button class="btn" id="rewrite" title="One Anthropic API call. Rewrites the plan — lead, reading, the four cards and the VEX note — from the current trinity.json, then rebuilds the sheet.">Update Plan</button>
+  <button class="ib" id="themeBtn" title="Cycle theme: Garden / Slate / Dusk (t)"><svg viewBox="0 0 24 24"><path d="M12 3a9 9 0 1 0 9 9c0-.5 0-1-.1-1.4A5.5 5.5 0 0 1 12 3z"/></svg></button>
+  <button class="ib stop" id="stopBtn" title="Stop TeddyAI — dashboard, feed and chart. Click once to arm, again to confirm."><svg viewBox="0 0 24 24"><path d="M12 3v9"/><path d="M6.3 6.7a8 8 0 1 0 11.4 0"/></svg></button>
+  <button class="ib" id="setBtn" title="Customize"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg></button>
+</header>
+
+<div id="gone"><div><h2>TeddyAI stopped</h2>
+  <p>The dashboard, the feed and the chart are down. Start them again with <code>Start TeddyAI.bat</code> in the project folder, then reload this page.</p></div></div>
+
+<div class="quote" id="quote"></div>
+
+<!-- ============================== TERMINAL ============================== -->
+<main class="view on" id="v-terminal">
+  <aside class="col l" id="liveCommentary" aria-label="Live commentary">
+    <section class="panel">
+      <div class="ph"><h3>Live Commentary</h3><span class="meta">NQ · ladder changes</span></div>
+      <div class="pb lle" data-live-ladder-explanation>Waiting for the saved book and live trades.</div>
+    </section>
+    <section class="panel" id="opsPanel">
+      <div class="ph"><h3>Operations</h3><span class="meta" id="opsMeta">—</span></div>
+      <div class="pb ops" id="ops">Waiting for the services…</div>
+    </section>
+  </aside>
+
+
+
+  <div class="col c">
+    <section class="panel" id="xlPanel">
+      <div class="ph"><h3>Gamma Ladders</h3><span class="meta left" id="xlMeta"></span>
+        <div class="right">
+          <div class="tools" id="xlBook"><button data-book="0dte">0DTE</button><button data-book="near" class="on">Near</button><button data-book="full">Full</button></div>
+          <div class="tools" id="xlMode"><button data-mode="strikes" title="Every strike within ±3% at its exact distance from each book's own spot">strikes</button><button data-mode="bands" title="Strikes summed into rows of ¼, ½ or 1% off each book's own spot">bands</button></div>
+          <div class="tools" id="xlBand" title="Row height in % of each book's own live spot"><button data-band="0.25">¼%</button><button data-band="0.5">½%</button><button data-band="1">1%</button></div>
+          <div class="tools" id="xlRange" title="How far from each book's own spot the ladder reaches"><button data-range="1">±1%</button><button data-range="2">±2%</button><button data-range="3">±3%</button></div>
+          <div class="tools" id="xlRows" title="grid: NQ on its 25-pt grid (10-pt strikes folded in) · all: every strike as listed"><button data-rows="grid">grid</button><button data-rows="all">all strikes</button></div>
+          <div class="tools" id="xlSize" title="Row height. fit = shrink the rows until the whole range fits the panel's current height (drag the corner)"><button data-size="fit">fit</button><button data-size="s">S</button><button data-size="m">M</button><button data-size="l">L</button></div>
+          <div class="tools"><button id="xlHide">hide</button></div>
+        </div></div>
+      <div class="xl-exps" id="xlExps" hidden></div>
+      <div class="xl-wrap" id="xlWrap" title="Drag the corner to resize — more height, more rows"><div class="xl" id="xl"></div></div>
+    </section>
+
+
+    <section class="panel">
+      <div class="ph">
+        <div class="ctabs"><button class="on">Price Action</button></div>
+        <span class="meta left" id="chartMeta"></span>
+        <div class="right">
+          <div class="tools" id="srcTools"><button data-src="chart" title="teddychart — footprint, large lots, TPO, volume profile, CVD, depth">teddychart</button><button data-src="builtin" class="on" title="the built-in canvas: candles from the print stream with the sheet's levels">built-in</button></div>
+          <div class="tools" id="tfTools"><button data-tf="5s">5s</button><button data-tf="15s">15s</button><button data-tf="30s">30s</button><button data-tf="1" class="on">1m</button><button data-tf="5">5m</button><button data-tf="15">15m</button></div>
+          <div class="tools" id="builtinTools"><button id="tgRails" class="on">rails</button><button id="tgLadder" class="on">ladder</button><button id="tgSetups" class="on">setups</button><button id="tgFit">fit</button></div>
+          <div class="tools" id="chartTools" hidden><button data-cc="heatmap">heat</button><button data-cc="tpo">TPO</button><button data-cc="vp">VP</button><button data-cc="cvdPane">CVD</button><button data-cc="bubbles">lots</button><button data-cc="gamma">gamma</button><button data-cc="setups">setups</button><button data-cc="dom">depth</button><button data-follow="1" title="Follow the live bar on both axes">follow</button><button data-fit="1">fit</button><a id="chartPop" title="Open teddychart in its own tab" target="_blank" style="display:inline-grid;place-items:center;width:26px;height:22px"><svg viewBox="0 0 24 24" style="width:13px;height:13px;stroke:var(--ink3);fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round"><path d="M14 4h6v6M20 4l-9 9M19 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1h5"/></svg></a></div>
+        </div>
+      </div>
+      <div class="chart-wrap" id="chartWrap"><canvas id="chart"></canvas>
+        <div class="legend" id="legend"><span><b style="border-color:var(--brass)"></b>reference</span><span><b style="border-color:var(--ink)"></b>last</span><span><b style="border-color:var(--warn)"></b>flips</span><span><b style="border-color:var(--ink3)"></b>rails</span><span><b style="border-color:var(--pos)"></b>+γ</span><span><b style="border-color:var(--neg)"></b>−γ</span></div>
+        <iframe id="chartFrame" hidden title="teddychart" style="position:absolute;inset:0;width:100%;height:100%;border:0"></iframe>
+      </div>
+    </section>
+
+
+
+
+
+    <div class="split">
+      <section class="panel">
+        <div class="ph"><h3>Key Levels</h3>
+          <div class="right"><div class="tools" id="lvTools"><button data-lv="all" class="on">All</button><button data-lv="core">Core</button><button data-lv="gex">Gamma</button><button data-lv="plan">Plan</button></div></div></div>
+        <div class="pb" style="padding:4px 6px 6px"><table class="lv" id="levels"></table></div>
+      </section>
+      <section class="panel">
+        <div class="ph"><h3>Reading the Day</h3><span class="meta" id="narrHint"></span></div>
+        <div class="pb" style="display:grid;gap:10px">
+          <div class="note" id="lead">—</div>
+          <ul class="t" id="reading"></ul>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <div class="col r">
+
+
+    <section class="panel">
+      <div class="ph"><h3>Today's Game Plan</h3><span class="meta" id="planMeta"></span></div>
+      <div class="pb plan" id="setups" style="padding:10px"></div>
+    </section>
+  </div>
+</main>
+
+<!-- ============================== GAMMA LADDER ============================== -->
+<main class="view" id="v-ladder">
+  <div class="col">
+    <section class="panel">
+      <div class="ph"><h3>Teddy Analysis</h3>
+        <span class="meta" style="white-space:normal;text-align:right;line-height:1.4">bars scale within each column · ⬤ = strike material in 2 or 3 books<br>
+        solid dark rule = LAST · brass rule = SETTLE, what the book is priced on · gamma in futures per 1% move · VEX in futures per 1 vol point</span></div>
+      <div class="sheet-ladder" id="ladder"><style id="ladderCss"></style><div id="ladderHtml"></div></div>
+    </section>
+  </div>
+  <div class="col">
+    <section class="panel">
+      <div class="ph"><h3>Strike Exposure</h3><span class="meta left expoMeta"></span>
+        <div class="right"><div class="tools" id="bookTools2"><button data-book="0dte">0DTE</button><button data-book="near" class="on">Near</button><button data-book="full">Full</button><button data-qqq="1" title="QQQ dealer gamma on the NQ axis, NQ-futures-equivalent, through the day's factor">QQQ</button></div></div></div>
+      <div class="expo" style="height:560px"><canvas id="expo2"></canvas></div>
+      <div class="expoFoot"></div>
+    </section>
+    <section class="panel">
+      <div class="ph"><h3>Live Ladder Explanation</h3><span class="meta">NQ · measured changes</span></div>
+      <div class="pb lle" data-live-ladder-explanation>Waiting for the saved book and live trades.</div>
+    </section>
+    <section class="panel">
+      <div class="ph"><h3>Equity Ladders</h3><span class="meta left" id="eqMeta"></span></div>
+      <div class="pb" id="eqLadders"></div>
+    </section>
+    <section class="panel">
+      <div class="ph"><h3>VEX term structure</h3></div>
+      <div class="pb" id="vexTerm2"></div>
+    </section>
+  </div>
+</main>
+
+<!-- ============================== GAMEPLAN ============================== -->
+<main class="view" id="v-plan">
+  <div class="col" style="gap:14px">
+    <div style="display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;border-bottom:2px solid var(--ink);padding:6px 0 10px">
+      <h2 style="font-size:24px;font-weight:800;letter-spacing:-.02em">Gameplan <span class="dim" style="font-weight:600" id="planSess"></span></h2>
+      <span class="meta dim" style="margin-left:auto;font-size:11.5px;letter-spacing:.06em;text-transform:uppercase" id="planStamp"></span>
+    </div>
+    <div class="callout note" id="lead2">—</div>
+    <div class="callout note" id="planCheck" hidden></div>
+    <div id="changes2"></div>
+    <section class="panel">
+      <div class="ph"><h3>Reading the day</h3></div>
+      <div class="pb"><ul class="t two" id="reading2"></ul></div>
+    </section>
+    <section>
+      <div class="ph" style="border:0;padding:0 0 8px"><h3 style="font-size:14px">Setups</h3><span class="meta">structural levels, not entry signals · status from the tape</span></div>
+      <div class="plan" id="setups2"></div>
+    </section>
+    <div class="callout w note" id="caveat2" hidden></div>
+    <div class="callout v note" id="vex2" hidden></div>
+  </div>
+</main>
+
+<aside id="drawer">
+  <h2>Customize</h2>
+  <section><h4>Theme</h4><div class="themes" id="themes"></div></section>
+  <section><h4>Chart</h4>
+    <label>Bars to show <select id="optBars"><option>120</option><option selected>240</option><option>390</option></select></label>
+  </section>
+  <section><h4>On open</h4>
+    <label>Run the pipeline <input type="checkbox" id="optAuto" checked></label>
+    <label><span>Also update the plan<br><small>one API call every open — leave off</small></span> <input type="checkbox" id="optComm"></label>
+  </section>
+  <section><h4>Keyboard</h4>
+    <label><span>Terminal / Ladder / Gameplan</span><span><kbd>q</kbd> <kbd>w</kbd> <kbd>e</kbd></span></label>
+    <label><span>Cycle theme</span><kbd>t</kbd></label>
+    <label><span>Rebuild now</span><kbd>r</kbd></label>
+    <label><span>Timeframe 5s … 15m</span><span><kbd>1</kbd> … <kbd>6</kbd></span></label>
+    <label><span>Fit levels</span><kbd>f</kbd></label>
+  </section>
+</aside>
+<div class="toast" id="toast"></div>
+
+<script src="/static/live_ladder_explain.js?v=20260914-3"></script>
+<script>
+/* ======================================================================
+   TeddyAI Terminal — frontend
+     GET  /cc/api/state    {steps, feed, running, model, key, job, ticks:{state,mode,n,last,age_s,contract}}
+     POST /cc/api/run      body {commentary:bool}, default false
+     POST /cc/api/commentary
+     GET  /cc/api/report   normalized report (+ caveat, changes)
+     GET  /cc/api/bars?tf= [{t,o,h,l,c,v}] asc — the 1-min cache (history)
+     GET  /cc/api/ticks    SSE: event prints = [[ts_ms],[px],[sz],[side]]; event status = ticks status
+     GET  /cc/api/ladder   {html, css} — the sheet's ladder
+   ====================================================================== */
+const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
+const store={get:(k,d)=>{try{return JSON.parse(localStorage.getItem('cc:'+k))??d}catch{return d}},set:(k,v)=>{try{localStorage.setItem('cc:'+k,JSON.stringify(v))}catch{}}};
+const fmt=n=>n==null||isNaN(n)?'—':Number(n).toLocaleString('en-US',{maximumFractionDigits:2});
+const fmt0=n=>n==null||isNaN(n)?'—':Number(n).toLocaleString('en-US',{maximumFractionDigits:0});
+const sgn=n=>n==null||isNaN(n)?'—':(n>0?'+':n<0?'−':'')+fmt0(Math.abs(n));
+const sgn2=n=>n==null||isNaN(n)?'—':(n>0?'+':n<0?'−':'')+fmt(Math.abs(n));
+const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const safe=s=>esc(s).replace(/&lt;(\/?)(b|i|br)&gt;/g,'<$1$2>');   // the report's own inline emphasis only
+const toast=m=>{const t=$('#toast');t.textContent=m;t.classList.add('show');clearTimeout(toast._h);toast._h=setTimeout(()=>t.classList.remove('show'),2400)};
+const hhmm=ms=>ms?new Date(ms).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit',hour12:false}):'';
+
+/* ---------- themes ---------- */
+const THEMES=[['garden','Garden · light','#EAEAE7,#D3C6BC,#A59083,#9E7E67,#646355,#393835'],['slate','Slate · dark','#0E1219,#E0A84A,#4FD1B0,#F0706A'],['dusk','Dusk · lake','#0A1116,#0B2F45,#2B5D7B,#8B7D6D,#C8BEBD'],['auto','Follow the system','#EAEAE7,#0E1219,#9E7E67,#4FD1B0']];
+const CYCLE=['garden','slate','dusk'];
+const root=document.documentElement;
+const sysDark=()=>matchMedia('(prefers-color-scheme:dark)').matches;
+function themeChoice(){return store.get('theme',null)||'auto'}
+function theme(){const c=root.dataset.theme;return c==='sheet'?'garden':c||(sysDark()?'slate':'garden')}   // what is actually showing
+function setTheme(t){if(t==='auto'){delete root.dataset.theme;store.set('theme',null)}else{root.dataset.theme=t;store.set('theme',t)}paintThemes();if(R){draw();renderWidgets();drawExpo()}}
+function paintThemes(){$('#themes').innerHTML=THEMES.map(([id,name,sw])=>`<button data-theme-pick="${id}" class="${themeChoice()===id?'on':''}"><span class="sw">${sw.split(',').map(c=>`<i style="background:${c}"></i>`).join('')}</span>${name}</button>`).join('');$$('[data-theme-pick]').forEach(b=>b.onclick=()=>setTheme(b.dataset.themePick))}
+const qsTheme=new URLSearchParams(location.search).get('theme');
+if(qsTheme)root.dataset.theme=qsTheme;else if(store.get('theme',null))root.dataset.theme=store.get('theme',null);
+paintThemes();
+matchMedia('(prefers-color-scheme:dark)').addEventListener('change',()=>{if(!root.dataset.theme&&R){draw();drawExpo();renderWidgets()}});
+$('#themeBtn').onclick=()=>setTheme(CYCLE[(CYCLE.indexOf(theme())+1)%CYCLE.length]);
+
+/* ---------- Stop: click to arm, click again to confirm ---------- */
+// No modal. A confirm() would block the page and, in a replay, the tick loop with it. The armed state
+// disarms itself after 3s, so a stray click on the way to a browser tab costs nothing.
+let STOPPED=false, stopArm=null;
+$('#stopBtn').onclick=async()=>{
+  const b=$('#stopBtn');
+  if(!b.classList.contains('armed')){
+    // a run in flight is worth SAYING (it dies where it stands, same as closing the console) -- not worth blocking
+    b.classList.add('armed');b.dataset.arm=(JOB&&$('#rerun').disabled)?'Confirm · build running':'Confirm stop';
+    clearTimeout(stopArm);stopArm=setTimeout(()=>{b.classList.remove('armed');delete b.dataset.arm},3000);return}
+  clearTimeout(stopArm);b.classList.remove('armed');delete b.dataset.arm;b.disabled=true;
+  const r=await api('/cc/api/stop',{method:'POST'});
+  if(!r||!r.ok){b.disabled=false;toast(r&&r.error?'Stop failed — '+r.error:'Stop failed — is teddy.py running?');return}
+  STOPPED=true;toast('Stopping TeddyAI…');
+  // the services take about a second to go; hold the screen until they have, then say so plainly
+  setTimeout(()=>{$('#gone').classList.add('on')},1500);
+};
+$('#setBtn').onclick=()=>$('#drawer').classList.toggle('open');
+document.addEventListener('click',e=>{if(!e.target.closest('#drawer,#setBtn'))$('#drawer').classList.remove('open')});
+
+/* ---------- views ---------- */
+const SOLO=new URLSearchParams(location.search).get('solo')||'';
+if(SOLO)document.body.classList.add('solo');
+let view=SOLO||store.get('view','terminal');
+function setView(v){view=v;if(!SOLO)store.set('view',v);$$('#tabs button').forEach(b=>b.classList.toggle('on',b.dataset.view===v));$$('.view').forEach(m=>m.classList.toggle('on',m.id==='v-'+v));
+  if(R){if(v==='terminal'){draw();drawExpo();renderXL(true)}if(v==='ladder'){drawExpo();vexTerm($('#vexTerm2'));renderEqLadders()}}}
+$$('#tabs button').forEach(b=>b.onclick=()=>setView(b.dataset.view));
+
+/* ---------- demo fixture (shape = /cc/api/report) ---------- */
+const DEMO={
+  session:{date:'2026-09-04',kind:'RTH',hours:6.5,label:'2026-09-04 · 1D',settle:'2026-09-03',expiries:15,oi_vintage:'final',iv_atm:.167,em:310,asof:null},
+  reference:{price:29184.25,settle:29184.25,source:'settle NQU6 2026-09-03',stale:false},
+  flips:{'0dte':29172,near:29140,full:29055}, net:{'0dte':-630,near:-655,full:-690},
+  gamma_at_spot:{'0dte':-42,near:18,full:61},
+  rails:{lo:28935,hi:29433,scale:1.0,label:'1D',em:310},
+  vex:{total:383,note:'Vol book still short the front; a break of the near flip is where it stops damping.',by_strike:{},by_expiry:[]},
+  lead:'Price settled 12 points under the 0DTE flip with the near and full books still positive beneath it — the shelf between 29,050 and 29,150 is where the day gets decided.',
+  caveat:'Demo fixture — teddy.py is not reachable, so these are illustrative numbers.',changes:null,
+  reading:[{s:'29,172 — the 0DTE flip, 12 points overhead.'},{s:'29,100 — the thinnest strike between clusters.'},{s:'Rails 28,935 / 29,433 at 1.000×.'},{s:'29,200 — cut through on yesterday’s open and never revisited.'}],
+  setups:[
+    {name:'A · Fade into 29,200',rank:'Primary',side:'short',entry:29200,sl:29245,tp:29110,tps:[29110,29055,28935],why:'0DTE flip overhead with the 29,200 call cluster.'},
+    {name:'B · Reclaim 29,172',rank:'Secondary',side:'long',entry:29175,sl:29135,tp:29260,tps:[29260,29330,29433],why:'Acceptance back over the flip removes the negative-gamma pocket.'},
+    {name:'C · Shelf break 29,100',rank:'Secondary',side:'short',entry:29095,sl:29140,tp:29000,tps:[29000,28935],why:'Thinnest strike on all three books.'},
+    {name:'D · Lower rail 28,935',rank:'Opportunistic',side:'long',entry:28940,sl:28895,tp:29050,tps:[29050,29100],why:'Rail plus full-book flip cluster.'}],
+  ladder:{near:[[29300,14,''],[29250,20,'⬤'],[29200,24,'⬤⬤'],[29150,9,''],[29140,0,'flip'],[29100,-3,'⬤⬤'],[29050,-14,'⬤'],[29000,-21,'⬤⬤']]},
+  history:[71,74,68,73,70,75,73,72,69,74,73,71], log:'demo fixture — teddy.py is not reachable'
+};
+const BOOT_STEPS=[['pull','Pull chain (Databento)'],['verify','Verify chain, reference & OI'],['ladder','Compute ladder (trinity_db · gen)'],['build','Build sheet (build.py)'],['comment','Update plan']];
+
+/* ---------- state ---------- */
+let R=null, hist=[], tf=60, showRails=true, showLadder=true, showSetups=true, fitLevels=false, feed='off', apiOK=true, synthetic=false, TK=null, CHART=null, chartSrc='builtin', book=store.get('book','near'), lvFilter='all';
+setView(view);
+
+/* ---------- boot ---------- */
+const stepsEl=$('#bootSteps');
+BOOT_STEPS.forEach(([id,l])=>stepsEl.insertAdjacentHTML('beforeend',`<li data-id="${id}"><span class="tick"><svg viewBox="0 0 24 24"><path d="M5 12l5 5L20 7"/></svg></span>${l}<small></small></li>`));
+function paintSteps(steps){
+  let done=0;
+  steps.forEach(s=>{const li=stepsEl.querySelector(`[data-id="${s.id}"]`);if(!li)return;li.className=s.state;li.querySelector('small').textContent=s.ms?(s.ms/1000).toFixed(1)+'s':'';if(s.state==='ok'||s.state==='skip')done++});
+  $('#bootBar').style.width=(done/BOOT_STEPS.length*100)+'%';
+  $('#procs').innerHTML=steps.map(s=>`<span class="p ${s.state}" title="${esc(s.label||s.id)} — ${s.state}"><em></em>${s.id}</span>`).join('');
+  return done===BOOT_STEPS.length||steps.some(s=>s.state==='fail');
+}
+// once Stop has been confirmed the services are going away on purpose: stop asking, so the poll loops do not
+// repaint the page as a dead feed on the way down
+async function api(path,opt){if(STOPPED)return null;try{const r=await fetch(path,opt);if(!r.ok)throw 0;apiOK=true;return await r.json()}catch{if(!opt)apiOK=false;return null}}
+function applyState(st){
+  feed=st.feed;if(st.ticks)TK=st.ticks;setFeed();
+  if(st.commentary){                             // the request went away => somebody answered it: reload the sheet
+    const had=!!(CMT&&CMT.request), now=!!st.commentary.request;
+    CMT=st.commentary; paintRewrite();
+    if(had&&!now){toast('Plan updated');loadReport()}
+  }
+  if(st.chart){const was=!!(CHART&&CHART.up);CHART=st.chart;if(R&&(was!==!!CHART.up))applyChartSrc()}
+  if(st.replay){$('#rerun').disabled=true;$('#rerun').title='Replay mode — the sheet on disk is '+st.replay+"'s and is not rebuilt";REPLAY=st.replay}
+  const nh=$('#narrHint');if(nh&&!(R&&R.reference.stale))nh.textContent=st.stale?'numbers moved since this plan was written — Update Plan':'';
+  if(st.job){const j=st.job;$('#bootSub').innerHTML=`Last job <b>${esc(j.name)}</b> ${j.ok?'ok':'<span class="neg">failed</span>'} · ${esc((j.at||'').slice(11,16))}${j.detail?' · '+esc(j.detail).slice(0,90):''}`;JOB=j}
+  {const was=JSON.stringify(PLANCHK);PLANCHK=st.plan_check||null;paintPlanCheck();if(R&&JSON.stringify(PLANCHK)!==was)renderSetups(true)}
+  if(st.model){$('#rewrite').title=`One API call to ${st.model}${st.key?'':' — ANTHROPIC_API_KEY is NOT set, this will fail'}. Rewrites the plan (lead, reading, four cards, VEX note) from the current trinity.json, then rebuilds the sheet.`;$('#rewrite').innerHTML='Update Plan<kbd>'+st.model.replace('claude-','')+(st.key?'':' · no key')+'</kbd>'}
+}
+let REPLAY=null, JOB=null, PLANCHK=null;
+function paintPlanCheck(){const el=$('#planCheck');if(!el)return;if(!PLANCHK){el.hidden=true;return}el.hidden=false;const cards=PLANCHK.cards||{};const acted=Object.entries(cards).filter(([,v])=>v.state&&v.state!=='pending');
+  el.className='callout note '+(PLANCHK.checked?'v':'w');el.innerHTML=`<span class="lbl" style="display:block;margin-bottom:3px">Plan check · ${esc((PLANCHK.at||'').slice(11,16))}</span>${PLANCHK.checked?`Each card's level was folded over the tape from the book's settle to the moment the plan describes — ${esc(PLANCHK.note)}. A level that already ran is standing open interest, not a spent trade; the card says what it did.`:`<b>Not checked against the tape</b> — ${esc(PLANCHK.note)}.`}${acted.length?`<br>Before this plan: ${acted.map(([k,v])=>`<b>${esc(k.split('|')[0])}</b> ${esc(v.text)}`).join(' · ')}`:''}`}
+function wallNote(s){const q=(R&&R.entry_quality)||null;if(!q)return '';const v=q[`${s.name}|${+s.entry}`]||q[`${(s.name||'').replace(/^[A-Z]\s*·\s*/,'')}|${+s.entry}`];if(!v)return '';const ok=v.near&&v.in_band;return `<div class="row" style="grid-template-columns:16px 1fr;color:var(--ink3)"><span class="ic" style="border-style:dotted"></span><span>${ok?'&#10003; ':''}${esc(v.text)}</span></div>`}
+function preNote(s){if(!PLANCHK||!PLANCHK.cards)return '';const v=PLANCHK.cards[`${s.name}|${+s.entry}`]||PLANCHK.cards[`${(s.name||'').replace(/^[A-Z]\s*·\s*/,'')}|${+s.entry}`];
+  // The server's pre-plan check still runs to the plan's asof, so from live_from on it describes the same tape
+  // the card's own tracker does. Whatever the tracker owns, the footnote stays quiet -- one row per event, and
+  // never a grey "still open" under a badge that says Played. Narrowed properly server-side in step 3.
+  if(v){const t=Math.max(v.entry||0,v.sl||0,v.approach_t||0);if(t&&t>=cardStartMs(s))return ''}
+  return v&&v.state&&v.state!=='pending'?`<div class="row" style="grid-template-columns:16px 1fr;color:var(--ink3)"><span class="ic" style="border-style:dashed"></span><span>before this plan · ${v.state==='tested'?'&#10003; ':''}${esc(v.text)}</span></div>`:''}
+async function boot(){
+  const auto=store.get('auto',true)&&!SOLO,comm=store.get('comm',false);
+  if(auto)await api('/cc/api/run',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({commentary:comm})});
+  let tries=0,st=null;
+  while(true){
+    st=await api('/cc/api/state');
+    if(!st){await demoBoot();break}
+    applyState(st);
+    // An idle service can have pending steps after restart or with auto-run off.
+    // Those are not an active job; open the saved report instead of waiting 15 minutes.
+    if(paintSteps(st.steps)||!st.running)break;
+    if(++tries>900)break; await new Promise(r=>setTimeout(r,500));
+  }
+  const failed=st&&st.steps.find(s=>s.state==='fail');
+  if(failed){const f=$('#bootFail');f.style.display='block';f.textContent=`${failed.label} failed — the page opens on the last good build. Details in notes\\cc.log.`;await new Promise(r=>setTimeout(r,2200))}
+  await loadReport();
+  $('#boot').classList.add('done');
+  await loadHistory(); TAPE.connect(); applyChartSrc(); renderQuote(); renderSetups(true); renderLevels(); drawExpo(); draw();
+  setInterval(pollState,5000);
+  setInterval(pollXref,60000);
+  pollOps();setInterval(pollOps,15000);
+  // no tape (CC_TICKS=off, key missing, feed down): the 1-min cache is the only clock, so re-read it each minute and re-score
+  setInterval(async()=>{if(TAPE.n>0)return;await loadHistory();renderQuote();renderSetups();renderLevels();drawExpo();draw()},60000);
+  setInterval(()=>{const tt=$('#tteVal');if(tt)tt.textContent=tteText();const ck=$('#clock');if(ck)ck.textContent=clockText()},1000);
+  setInterval(()=>{if(TAPE.lastMs)paintLast()},5000);
+}
+async function demoBoot(){
+  $('#bootSub').textContent='teddy.py not reachable — showing the demo fixture';
+  const steps=BOOT_STEPS.map(([id,label])=>({id,label,state:'pending'}));
+  for(const s of steps){s.state='run';paintSteps(steps);await new Promise(r=>setTimeout(r,260));s.state=s.id==='comment'?'skip':'ok';s.ms=300+Math.random()*900;paintSteps(steps)}
+  feed='off';setFeed();
+}
+async function pollState(){const st=await api('/cc/api/state');if(st)applyState(st)}
+/* THE CROSS-REFERENCE WAS READ ONCE, in loadReport(). An open page then showed the compare of its own
+   last load for the rest of the day while the files on disk were rewritten under it -- the equity pull
+   lands at 16:10 PT, its compare hours later, and opra-live rewrites all four books at ~03:30 PT. That
+   is what "the opra feed is not updated" looks like from the desk: not a pull that failed, a page that
+   never looked again. Re-read on a slow timer and rebuild only when the file actually changed, so a
+   quiet day costs one small GET a minute and nothing else. 2026-09-16. */
+function xrefSig(X){const M=X&&X.mapping;return X?`${X.date}|${X.asof}|${M&&M.nq_ref_symbol}|${M&&M.qqq_per_nq_point}`:'(none)'}
+async function pollXref(){
+  // same guard loadReport uses: a business-time chain_live written before the clock export exists
+  // would make modelTau throw inside render, so it counts as "no live chain"
+  const usable=C=>C&&C.books&&!(C.time_basis==='sessions'&&!(C.clock_knots&&C.clock_knots.length>1))?C:null;
+  const d=await api('/cc/api/opra',{});
+  const data=(d&&d.books)?d:null;
+  XREF.missing=(d&&d.missing)||[];
+  if(xrefSig(data)===xrefSig(XREF.data))return;
+  XREF.data=data;
+  XREF.qqq=usable(await api('/cc/api/opra/chain?root=QQQ',{}));
+  XREF.spx=usable(await api('/cc/api/opra/chain?root='+encodeURIComponent('SPX+SPXW'),{}));
+  XREF.spy=usable(await api('/cc/api/opra/chain?root=SPY',{}));
+  XREF.cache={};XL.cache={};XL.key='';
+  renderWidgets();renderEqLadders();renderXL(true);drawExpo();
+}
+/* ---------- Operations: what is running, what is scheduled, what was pulled and built and when (2026-09-15) ---------- */
+function agoTxt(s){if(s==null)return'—';if(s<60)return s+'s';if(s<3600)return Math.round(s/60)+'m';if(s<86400)return (s/3600).toFixed(1)+'h';return Math.round(s/86400)+'d'}
+function opsRow(ok,k,d,age,limit){const cls=ok===null?'':(ok?'ok':'bad');const stale=age!=null&&limit&&age>limit;
+  return`<div class="row"><span class="dot ${cls}"></span><span><span class="k">${esc(k)}</span> <span class="d">${esc(d||'')}</span></span><span class="age ${stale?'bad':''}">${age==null?'':agoTxt(age)+' ago'}</span></div>`}
+/* THE TOP LINE. "Is the stack up" is not a service and does not belong in the service list: through the
+   22-hour outage of 2026-09-16 the scheduler sat between "live levels" and "chart" as one dot among seven,
+   while every other row was legitimately green -- the feed was streaming, the levels were repricing, the
+   chart was drawing. It is the question this panel exists to answer, so it is answered first. (2026-09-17) */
+function opsTop(s){
+  if(!s)return'';
+  const k=s.ok?'ok':s.state==='down'?'bad':'warn';
+  const word=s.ok?'STACK UP':s.state==='down'?'STACK DOWN':s.state==='stale'?'SCHEDULER STALE':s.state==='unknown'?'UNKNOWN':'GAPS';
+  return`<div class="top ${k}"><span class="st">${word}</span><span class="ln">${esc(s.line||s.why||'')}</span></div>`}
+function renderOps(o){
+  const el=document.getElementById('ops');if(!el||!o)return;let h='';
+  h+=opsTop(o.stack);
+  h+='<h5>Services</h5>'+o.services.map(s=>opsRow(s.ok,s.name,s.detail,s.age,s.name==='live levels'?180:s.name==='live feed'?120:90)).join('');
+  const now=Date.parse(o.now);
+  h+='<h5>Schedule · weekdays PT</h5>'+(o.schedule||[]).map(j=>{const nx=j.next?Date.parse(j.next+':00'):null;const inMin=nx?Math.round((nx-now)/60000):null;
+    const last=j.last_run?`last ${j.last_run.slice(5,16).replace('T',' ')} ${j.last_rc===0?'✓':(j.last_rc==null?'…':'✗ rc '+j.last_rc)}`:'not run yet';
+    const ok=j.running?null:(j.last_rc==null?null:j.last_rc===0);
+    return opsRow(ok,j.at+' '+j.name,(j.running?'RUNNING · ':'')+j.what+' · '+last,null)+(inMin!=null?`<div class="d" style="padding:0 0 3px 17px">next ${j.next.slice(0,16).replace('T',' ')} · in ${inMin<60?inMin+'m':(inMin/60).toFixed(1)+'h'}</div>`:'')}).join('');
+  const b=o.build||{};h+='<h5>Last build</h5>'+opsRow(!b.stale,`${b.report_date||'—'} ${b.label||''}`,`ref ${b.spot??'—'}${b.last_print?' · last '+b.last_print:''} · book ${b.book||'—'} (${b.vintage||'—'})${b.stale?' · COMMENTARY NOT REWRITTEN':''}`,b.age,0);
+  h+='<h5>Last pulls</h5>'+(o.pulls||[]).slice(0,6).map(p=>opsRow(p.ok,p.job,p.detail,p.age,0)).join('');
+  const g=o.gameplan||{};if(g.job)h+='<h5>Last gameplan</h5>'+opsRow((g.steps||[]).every(x=>x.ok),`${g.job} · ${(g.started||'').slice(5,16).replace('T',' ')}`,(g.steps||[]).map(x=>(x.ok?'✓ ':'✗ ')+x.step).join(' · '),g.age,0);
+  if(o.post)h+='<h5>Last post</h5><div class="ledger">'+esc(o.post)+'</div>';
+  if(o.ledger_tail&&o.ledger_tail.length)h+='<h5>Ledger · newest</h5><div class="ledger">'+o.ledger_tail.map(esc).join('\n')+'</div>';
+  el.innerHTML=h;const m=document.getElementById('opsMeta');if(m)m.textContent='updated '+new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+}
+async function pollOps(){const o=await api('/cc/api/ops');if(o)renderOps(o)}
+function feedState(){
+  let k='off',txt='no tape';
+  if(synthetic){k='sim';txt='demo tape'}
+  else if(TK&&TK.mode==='replay'){k=TK.state==='replaying'?'replay':'sim';const r=TK.replay||{};const t=TK.clock_ms?new Date(TK.clock_ms).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}):'';txt=`replay ${r.day||''} · ${t} · ${r.speed||1}×`}
+  else if(TK&&TK.state==='live'&&TAPE.connected){k=TK.mode==='sim'?'sim':'live';txt=TK.mode==='sim'?'simulated tape':`live · ${TK.contract||'NQ'}`}
+  else if(TK&&TK.state==='replaying'){k='replay';txt='replaying the day'}
+  else if(TK&&TK.state==='reconnecting'){k='stale';txt='tape reconnecting'}
+  else if(feed==='live'){k='live';txt='1-min bars'}else if(feed==='stale'){k='stale';txt='bars stale'}
+  return {k,txt};
+}
+function setFeed(){const c=$('#feedChip');if(!c)return;const {k,txt}=feedState();c.className='chip '+k;c.lastElementChild.textContent=txt}
+
+/* ---------- report ---------- */
+async function loadReport(){
+  R=(await api('/cc/api/report'))||DEMO;
+  const S=R.session, ref=R.reference;
+  $('#narrHint').textContent=ref.stale?'reference is stale — check the tape':'';
+  $('#lead').innerHTML=safe(R.lead);$('#lead2').innerHTML=safe(R.lead);
+  const rd=R.reading.map(x=>`<li>${safe(x.s)}</li>`).join('');$('#reading').innerHTML=rd;$('#reading2').innerHTML=rd;
+  $('#planMeta').innerHTML=`${R.setups.length} setups · ${esc(R.rails.label||'')} rails <span class="mono">${fmt0(R.rails.lo)} – ${fmt0(R.rails.hi)}</span>${R.rails.scale!==1?` · ${(+R.rails.scale).toFixed(3)}× day`:''}`;
+  $('#planSess').textContent='/ '+(S.label||'');
+  $('#planStamp').innerHTML=`${ref.source&&ref.source.startsWith('last')?'Reference':'Settle'} <b class="mono">${fmt(ref.settle??ref.price)}</b>`
+    +(ref.source&&ref.source.startsWith('last')?` · last <b class="mono">${fmt(ref.price)}</b>${ref.stale?' <b class="neg">(stale)</b>':''}`:'')
+    +` · IV <b>${S.iv_atm!=null?(S.iv_atm*100).toFixed(2)+'%':'—'}</b>${S.hours?` · ${(+S.hours).toFixed(2).replace(/\.?0+$/,'')}h to front expiry`:''}`
+    +` · OI <b>CME settle ${esc(S.settle||'')}</b>${S.oi_vintage&&S.oi_vintage!=='final'?' <b class="brass">(preliminary)</b>':''}`;
+  const cv=$('#caveat2');cv.hidden=!R.caveat;cv.innerHTML=safe(R.caveat||'');
+  const vx=$('#vex2');vx.hidden=!(R.vex&&R.vex.note);vx.innerHTML=`<span class="lbl vio" style="display:block;margin-bottom:4px">VEX · vol regime</span>${safe(R.vex&&R.vex.note||'')}`;
+  const ch=$('#changes2');ch.innerHTML=R.changes&&R.changes.rows&&R.changes.rows.length?`<section class="panel"><div class="ph"><h3>What changed</h3><span class="meta">${esc(R.changes.since||'')}</span></div><div class="pb"><div class="chgt">${R.changes.rows.map(r=>`<div class="k">${esc(r.k)}</div><div class="mono dim">${esc(r.a)}</div><div class="dim">→</div><div class="mono">${esc(r.b)}</div><div class="mono ${/^[+]/.test(r.d)?'pos':/^[-−]/.test(r.d)?'neg':''}">${esc(r.d)}</div>`).join('')}</div></div></section>`:'';
+  $('#chartMeta').textContent=tfLabel()+' · levels from the sheet';
+  TAPE.refold();
+  // 2026-09-07 audit (OPRA-01): a business-time chain_live written BEFORE the clock export exists would
+  // make modelTau throw inside render; treat it as "no live chain" (sheet numbers, the existing footer) instead.
+  const usable=C=>C&&C.books&&!(C.time_basis==='sessions'&&!(C.clock_knots&&C.clock_knots.length>1))?C:null;
+  LIVE.chain=usable(await api('/cc/api/chain'));LIVE.cache={};
+  XREF.data=await api('/cc/api/opra',{});XREF.missing=XREF.data&&XREF.data.missing||[];if(XREF.data&&!XREF.data.books)XREF.data=null;
+  XREF.qqq=usable(await api('/cc/api/opra/chain?root=QQQ',{}));XREF.cache={};
+  XREF.spx=usable(await api('/cc/api/opra/chain?root='+encodeURIComponent('SPX+SPXW'),{}));
+  XREF.spy=usable(await api('/cc/api/opra/chain?root=SPY',{}));XL.cache={};XL.key='';
+  renderQuote();renderSetups(true);renderLevels();renderWidgets();loadLadder();renderEqLadders();draw();drawExpo();renderXL(true);
+}
+async function loadLadder(){
+  const L=await api('/cc/api/ladder',{});
+  if(!L||!L.html){$('#ladderHtml').innerHTML='<div class="note" style="padding:10px">The ladder appears after the first build (ladder_frag.html).</div>';return}
+  $('#ladderCss').textContent=L.css;$('#ladderHtml').innerHTML=L.html;
+}
+function tfLabel(){return tf<60?tf+'-sec':(tf/60)+'-min'}
+async function loadHistory(){
+  // the 1-min cache can only seed minute bars and up; sub-minute frames are built from prints alone
+  if(tf<60){hist=[];return}
+  const b=await api('/cc/api/bars?tf='+(tf/60));if(b&&b.length){hist=b;synthetic=false}else if(!apiOK){hist=synthBars(R.reference.price);synthetic=true}}
+
+/* ---------- quote band ---------- */
+function dayStats(){
+  const bars=chartBars();if(!bars.length)return null;
+  const open=TAPE.dayOpen||(()=>{const d=new Date(nowMs());d.setUTCHours(0,0,0,0);return d.getTime()})();
+  const day=bars.filter(b=>b.t>=open);const use=day.length?day:bars.slice(-120);
+  return {lo:Math.min(...use.map(b=>b.l)),hi:Math.max(...use.map(b=>b.h)),open:use[0].o};
+}
+function clockText(){const d=new Date(nowMs());return d.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false})}
+function sessionText(){
+  const d=new Date(nowMs()),h=d.getUTCHours()+d.getUTCMinutes()/60;const wd=d.getUTCDay();
+  if(wd===6||(wd===5&&h>=21)||(wd===0&&h<22))return ['Globex closed','off'];
+  if(h>=13.5&&h<20)return ['RTH · New York','live'];
+  if(h>=20&&h<21)return ['Post-settle','stale'];
+  if(h>=22||h<7)return ['Asia session','stale'];
+  return ['Europe session','stale'];
+}
+function renderQuote(){
+  const ref=R.reference,S=R.session,last=lastPrice(),d=dayStats();const {k,txt}=feedState();
+  const chg=last!=null?last-ref.settle:null,pct=chg!=null?chg/ref.settle*100:null;
+  const [sess,sk]=sessionText();
+  const sym=(ref.source||'').match(/NQ[A-Z]\d/)?.[0]||TK?.contract||'NQ';
+  $('#quote').innerHTML=[
+    `<div class="q sym"><div class="v">NQ Futures</div><div class="n">${esc(sym)} · CME · ${esc((S.label||'').replace(' · preliminary book',''))}</div></div>`,
+    `<div class="q last"><div class="v mono" id="lastVal">${fmt(last??ref.price)}</div><div class="chg mono ${chg>=0?'pos':'neg'}" id="lastChg">${chg==null?'':sgn2(chg)+' '+(pct>=0?'+':'−')+Math.abs(pct).toFixed(2)+'%'}</div></div>`,
+    `<div class="q live"><div class="row"><span class="chip ${k}" id="feedChip"><i></i><span>${esc(txt)}</span></span>${TK&&TK.mode==='replay'?`<span class="tools" style="margin-left:6px">${[1,5,10,30,100].map(x=>`<button data-speed="${x}" class="${TK.replay&&+TK.replay.speed===x?'on':''}">${x}×</button>`).join('')}</span>`:''}</div><div class="row mono" style="font-size:11.5px"><span id="clock">${clockText()}</span><span class="dim" id="lastAge">${ageText().replace(/^ · /,'')}</span></div></div>`,
+    `<div class="q"><div class="lbl">${ref.source&&ref.source.startsWith('last')?'Reference · last':'Settle · ref'}</div><div class="v mono sm">${fmt(ref.price)}</div><div class="n">${esc((ref.source||'').replace(/ · preliminary book/,''))}</div></div>`,
+    `<div class="q"><div class="lbl">Day range</div><div class="v mono sm"><span class="neg">${d?fmt(d.lo):'—'}</span> – <span class="pos">${d?fmt(d.hi):'—'}</span></div><div class="n">${d?fmt0(d.hi-d.lo)+' pts · '+sgn(d.lo-ref.settle)+' / '+sgn(d.hi-ref.settle)+' vs settle':'waiting for bars'}</div></div>`,
+    biasCell(),
+    `<div class="q"><div class="lbl">${esc((R.rails.label||'1D').replace('Rest of overnight','Rest of O/N'))} rails</div><div class="v mono sm">${fmt0(R.rails.lo)} – ${fmt0(R.rails.hi)}</div><div class="n">±${fmt0(R.rails.em)}${R.rails.scale!==1?` · ${(+R.rails.scale).toFixed(3)}× day`:''} · IV ${S.iv_atm!=null?(S.iv_atm*100).toFixed(2)+'%':'—'} · EM ±${fmt0(S.em)}</div></div>`,
+    `<div class="q"><div class="lbl">${ttePast()?'Plan age':'Time left'}</div><div class="v mono sm" id="tteVal">${tteText()}</div><div class="n">${ttePast()?'still the plan until the next book':(S.kind==='RTH'?'to the 20:00 UTC expiry':'to the front expiry')}</div></div>`,
+    `<div class="q sess"><div class="row" style="display:flex;align-items:center;gap:8px"><span class="chip ${sk}"><i></i><span>${sess}</span></span></div><div class="n" style="text-align:right">${S.oi_vintage&&S.oi_vintage!=='final'?'<span class="brass">prelim</span> · ':''}OI ${esc((S.settle||'').slice(5))}</div></div>`,
+  ].join('');
+}
+function biasCell(){const g=R.gamma_at_spot,f=R.flips,bk=f.near!=null?'near':Object.keys(f)[0]||'near';const L=liveState(bk);const v=L?L.near:g[bk];const src=L?'live':'sheet';
+  const bias=v>0?'Long gamma':v<0?'Short gamma':'Flat';const others=['0dte','near','full'].filter(k=>k!==bk&&g[k]!=null).map(k=>`${k==='0dte'?'0DTE':k} ${sgn(g[k])}`).join(' · ');
+  return `<div class="q" id="biasCell"><div class="lbl">Dealer bias · ${bk==='0dte'?'0DTE':bk} book</div><div class="v sm ${v>0?'pos':v<0?'neg':''}">${bias} <span class="mono" style="font-weight:500">${sgn(v)}</span></div><div class="n">Γ near price · ${L?`live · sheet ${sgn(g[bk])}`:'sheet'}${others?' · '+others:''}</div></div>`}
+function lastPrice(){return TAPE.last??hist.at(-1)?.c}
+function nowMs(){return TK&&TK.mode==='replay'&&TK.clock_ms?TK.clock_ms:Date.now()}
+function ageText(){if(!TAPE.lastMs)return '';const s=(nowMs()-TAPE.lastMs)/1000;return s<60?` · ${Math.max(0,Math.round(s))} s ago`:s<3600?` · ${Math.round(s/60)} min ago`:` · ${(s/3600).toFixed(1)} h ago`}
+function paintLast(){const last=lastPrice(),ref=R.reference.settle;const lv=$('#lastVal');if(lv)lv.textContent=fmt(last);
+  const c=$('#lastChg');if(c&&last!=null){const chg=last-ref,pct=chg/ref*100;c.className='chg mono '+(chg>=0?'pos':'neg');c.textContent=sgn2(chg)+' '+(pct>=0?'+':'−')+Math.abs(pct).toFixed(2)+'%'}
+  const a=$('#lastAge');if(a){const s=TAPE.lastMs?(nowMs()-TAPE.lastMs)/1000:0;a.style.color=s>300?'var(--neg)':s>60?'var(--warn)':'';a.textContent=ageText().replace(/^ · /,'')}
+  const bc=$('#biasCell');if(bc)bc.outerHTML=biasCell();
+  renderLevels()}
+
+/* ---------- key levels ---------- */
+function levelRows(){
+  const last=lastPrice()??R.reference.price,rows=[];
+  const add=(type,price,cls,note,color)=>{if(price!=null)rows.push({type,price,cls,note,color})};
+  const rn=`${R.rails.scale!==1?(+R.rails.scale).toFixed(3)+'× day':'1σ'} · ${esc((R.rails.label||'1D').replace('Rest of overnight','rest of O/N'))}`;
+  add('Rail high',R.rails.hi,'core',rn,'var(--ink3)');
+  add('Rail low',R.rails.lo,'core',rn,'var(--ink3)');
+  add('Reference',R.reference.price,'core',esc((R.reference.source||'').split(' · ')[0]),'var(--brass)');
+  Object.entries(R.flips).forEach(([b,v])=>add((b==='0dte'?'0DTE':b[0].toUpperCase()+b.slice(1))+' flip',v,'gex',`net ${sgn(R.net[b])} · book flips sign here`,'var(--warn)'));
+  const lad=R.ladder[book]||Object.values(R.ladder)[0]||[];const mx=Math.max(...lad.map(r=>Math.abs(r[1])))||1;
+  lad.filter(r=>r[2]!=='flip'&&Math.abs(r[1])>=mx*.45).slice(0,6).forEach(r=>add(r[1]>0?'Gamma wall':'Gamma trough',r[0],'gex',`${sgn(r[1])} ${book==='0dte'?'0DTE':book} ${r[2]?'· '+r[2]:''}`,r[1]>0?'var(--pos)':'var(--neg)'));
+  R.setups.forEach((s,i)=>{const st=statusOf(s);add(`${letterOf(s,i)} · ${esc(shortTitle(s,18))}`,s.entry,'plan',`${s.side} · ${st.l.toLowerCase()}`,s.side==='long'?'var(--pos)':'var(--neg)')});
+  const seen=new Set();return rows.filter(r=>{const k=r.type+r.price;if(seen.has(k))return false;seen.add(k);return true}).sort((a,b)=>b.price-a.price);
+}
+function renderLevels(){
+  if(!R)return;const last=lastPrice()??R.reference.price;
+  let rows=levelRows();if(lvFilter!=='all')rows=rows.filter(r=>r.cls===lvFilter);
+  let here=-1,best=Infinity;rows.forEach((r,i)=>{const d=Math.abs(r.price-last);if(d<best){best=d;here=i}});
+  $('#levels').innerHTML=`<colgroup><col class="c1"><col class="c2"><col class="c3"><col class="c4"></colgroup><tr><th>Level</th><th class="r">Price</th><th class="r">Δ last</th><th>Notes</th></tr>`+rows.map((r,i)=>`<tr class="${i===here?'here':''}"><td class="t"><span class="sw" style="background:${r.color}"></span>${r.type}</td><td class="r mono">${fmt(Math.round(r.price*4)/4)}</td><td class="r mono ${r.price-last>0?'pos':r.price-last<0?'neg':''}">${sgn(r.price-last)}</td><td class="note">${r.note}</td></tr>`).join('');
+}
+$$('[data-lv]').forEach(b=>b.onclick=()=>{lvFilter=b.dataset.lv;$$('[data-lv]').forEach(x=>x.classList.toggle('on',x===b));renderLevels()});
+
+/* ---------- setups: status from the tape when it has prints, else from bars ---------- */
+function tpsOf(s){return (s.tps&&s.tps.length?s.tps:[s.tp]).filter(v=>v!=null)}
+// Cards are scored from live_from, NOT from asof. asof is trinity_db's PRICING instant (13:30 UTC on a
+// premarket RTH plan) -- scoring from it threw away the whole Globex session a plan is published into, which
+// on 2026-09-07 left card A reading "Not triggered" while it ran from 23:16 to T3. live_from is
+// max(Globex open of the session the plan is for, when the plan was published); the server computes it
+// (command_center._plan_window) and sends it per plan AND per card, so a rebuild that moves one level does
+// not restart the cards it left alone. Still true, and the reason the publication floor exists: a card
+// cannot be played before it was written. Falls back to asof if an older server is answering.
+function planStartMs(){const S=R&&R.session||{};const t=Date.parse(S.live_from||S.asof||'');return isNaN(t)?0:t}
+function cardStartMs(s){const t=Date.parse((s&&s.live_from)||'');return isNaN(t)?planStartMs():t}
+const dayhhmm=ms=>{if(!ms)return'';const d=new Date(ms);
+  return (d.toDateString()===new Date(nowMs()).toDateString()?'':d.toLocaleDateString([],{weekday:'short'})+' ')+hhmm(ms)};
+// A fill before the plan's asof happened in the overnight, not in the session the plan is labelled for --
+// worth saying on the card, because "triggered 16:16" on a plan headed 09-08 RTH reads as an RTH fill.
+function sessTag(ms){const a=Date.parse((R&&R.session&&R.session.asof)||'');return (!ms||isNaN(a)||ms>=a)?'':' · Globex'}
+// 'Tested': the tape came within TEST_FRAC of the card's risk of the entry and turned without filling it. The same
+// rule as the server's pre-plan check (command_center.py TEST_FRAC), so the two say the same word about a level.
+const TEST_FRAC=0.25;
+function testedStatus(s,near){const risk=Math.abs(s.entry-s.sl);if(!near||!risk||near.d>TEST_FRAC*risk)return null;
+  return{k:'tested',l:'Tested · held',p:0,at:{approach:near.t,approach_px:near.px,approach_pts:near.d}}}
+function statusOf(s){
+  const tps=tpsOf(s),ps=cardStartMs(s);
+  // the print stream only holds what arrived since this page connected. It may answer for a card only when it
+  // covers that card's start -- otherwise it would report "Not triggered" over a trigger the bars can see.
+  if(TAPE.n>0&&TAPE.covers(ps)){const t=TAPE.status(s,tps);if(t)return t}
+  const bars=chartBars().filter(b=>b.t>=ps);
+  if(!bars.length||!tps.length)return{k:'pending',l:'Not triggered',p:0};
+  let trig=-1,best=-1,near=null;const at={};
+  for(let i=0;i<bars.length;i++){const b=bars[i];
+    if(trig<0){if(b.l<=s.entry&&b.h>=s.entry){trig=i;at.entry=b.t;continue}
+      const d=Math.min(Math.abs(b.l-s.entry),Math.abs(b.h-s.entry));if(!near||d<near.d)near={d,px:s.side==='long'?b.l:b.h,t:b.t};continue}
+    const hitSL=s.side==='long'?b.l<=s.sl:b.h>=s.sl;
+    tps.forEach((t,j)=>{if((s.side==='long'?b.h>=t:b.l<=t)&&at['tp'+j]==null){at['tp'+j]=b.t;best=Math.max(best,j)}});
+    if(hitSL){at.sl=b.t;return best>=0?{k:'played',l:`Played · T${best+1} then stop`,p:1,at}:{k:'invalid',l:'Invalidated',p:0,at}}
+    if(best===tps.length-1)return{k:'played',l:`Played · T${best+1}`,p:1,at};
+  }
+  if(trig<0)return testedStatus(s,near)||{k:'pending',l:'Not triggered',p:0,at};
+  const last=bars.at(-1).c, p=Math.max(0,Math.min(1,(last-s.entry)/(tps[0]-s.entry)));
+  return{k:'active',l:best>=0?`In play · T${best+1} hit`:'In play',p:best>=0?1:p,at};
+}
+let lastSetupKey='';
+function letterOf(s,i){return String(1+(i??R.setups.indexOf(s)))} // 2026-09-14: the badge is the card's position on the sheet, never a letter -- A-D read as grades
+function titleOf(s){return (s.name||'').replace(/^[A-Z]\s*·\s*/,'')}
+function shortTitle(s,n){const w=titleOf(s).split(' ');let o='';for(const x of w){if((o+' '+x).trim().length>n)break;o=(o+' '+x).trim()}return o||w[0].slice(0,n)}
+function cardHtml(s,i,st,full){
+  const tps=tpsOf(s),risk=Math.abs(s.entry-s.sl),at=st.at||{};
+  const letter=letterOf(s,i),title=titleOf(s);
+  const cell=(k,p,extra,cls)=>`<div class="${cls||''}"><div class="k">${k}</div><div class="p mono">${p==null?'—':fmt0(p)}</div><div class="d mono">${extra||''}</div></div>`;
+  const tcells=[0,1,2].map(j=>{const t=tps[j];if(t==null)return cell('T'+(j+1),null,'','miss');const d=Math.abs(t-s.entry);return cell('T'+(j+1),t,`${risk?(d/risk).toFixed(1)+'R':fmt0(d)}`,at['tp'+j]?'hit':'')}).join('');
+  const tick='<svg viewBox="0 0 24 24"><path d="M5 12l5 5L20 7"/></svg>',cross='<svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg>';
+  const row=(lbl,px,ms,state)=>`<div class="row ${state}"><span class="ic">${state==='bad'?cross:tick}</span><span>${lbl}</span><span class="px mono">${typeof px==='string'?px:fmt0(px)}</span><span class="at mono">${ms?dayhhmm(ms):(state==='wait'?'live':'—')}</span></div>`;
+  const live=st.k==='active';
+  const rows=[row(`Triggered · ${s.side==='long'?'long from':'short from'}${sessTag(at.entry)}`,s.entry,at.entry,at.entry?'done':((st.k==='pending'||st.k==='tested')&&TAPE.connected?'wait':''))]
+    .concat(tps.map((t,j)=>row(`T${j+1} reached`,t,at['tp'+j],at['tp'+j]?'done':(live&&j===(st.at&&Object.keys(at).filter(k=>k.startsWith('tp')).length)?'wait':''))))
+    .concat([row('Stopped',s.sl,at.sl,at.sl?'bad':'')]);
+  if(st.k==='tested')rows.splice(1,0,row(`Tested · ${s.side==='long'?'low':'high'} held (${(+at.approach_pts).toFixed(2).replace(/\.?0+$/,'')} pts from the entry)`,fmt(at.approach_px),at.approach,'test'));
+  const from=s.live_from?`tracked from ${dayhhmm(Date.parse(s.live_from))} — the later of this plan's Globex open and the moment the card was published`:'';
+  return`<div class="pl ${s.side} ${(s.rank||'').toLowerCase()==='primary'?'pri':''}">
+    <div class="hd"><div class="ltr ${s.side==='long'?'pos':'neg'}">${letter}</div><div style="min-width:0;flex:1"><h3>${esc(title)}</h3><div class="tg"><span class="side ${s.side==='long'?'pos':'neg'}">${s.side}</span><span class="rank">${esc(s.rank||(i===0?'Primary':'Secondary'))}</span>${s.tag?' · '+safe(s.tag):''}</div></div>
+      <span class="badge ${st.k}" title="${esc(from)}">${st.l}</span></div>
+    <div class="lvls">${cell('Entry',s.entry,sgn(s.entry-(lastPrice()??R.reference.price))+' · last',at.entry?'hit':'')}${cell('Stop',s.sl,fmt0(risk)+' pts',at.sl?'hit stop':'')}${tcells}</div>
+    <div class="chk">${rows.join('')}${wallNote(s)}${preNote(s)}</div>
+    ${full?`<div class="wy">${safe(s.why)}</div>`:''}<div class="prog"><i style="width:${st.p*100}%"></i></div></div>`;
+}
+function renderSetups(force){
+  const sts=R.setups.map(s=>statusOf(s));
+  const key=sts.map(x=>x.l+'|'+x.p.toFixed(2)+'|'+Object.values(x.at||{}).join(',')).join('|')+'|'+(lastPrice()??'');
+  if(!force&&key===lastSetupKey)return; lastSetupKey=key;
+  $('#setups').innerHTML=R.setups.map((s,i)=>cardHtml(s,i,sts[i],false)).join('')||'<div class="note dim">No setups on the sheet yet.</div>';
+  $('#setups2').innerHTML=R.setups.map((s,i)=>cardHtml(s,i,sts[i],true)).join('')||'<div class="note dim">No setups on the sheet yet.</div>';
+}
+
+/* ---------- left column widgets ---------- */
+const WIDGETS={
+  expo:{title:'Strike Exposure',tools:()=>`<div class="tools" style="margin-left:auto"><button data-book="0dte">0DTE</button><button data-book="near">Near</button><button data-book="full">Full</button><button data-qqq="1" title="QQQ dealer gamma on the NQ axis, NQ-futures-equivalent, through the day's factor">QQQ</button></div>`,
+    render:()=>`<div class="expo auto"><canvas id="expo"></canvas></div><div class="expoFoot"></div>`,after:()=>drawExpo(),bare:true},
+  book:{title:'Book & Session',render:()=>{const S=R.session;return`<div class="kv">
+      <div class="k">Plan for</div><div class="v mono">${esc(S.date||'')}<small>${esc(S.kind||'')}</small></div>
+      <div class="k">To front expiry</div><div class="v mono">${S.hours!=null?(+S.hours).toFixed(2).replace(/\.?0+$/,'')+'h':'—'}</div>
+      <div class="k">OI vintage</div><div class="v ${S.oi_vintage!=='final'?'brass':''}">${esc(S.oi_vintage||'final')}<small>settle ${esc(S.settle||'')}</small></div>
+      <div class="k">Expiries</div><div class="v mono">${S.expiries??'—'}</div>
+      <div class="k">Reference</div><div class="v mono">${fmt(R.reference.price)}${R.reference.stale?'<small class="neg">stale</small>':''}</div>
+      ${JOB?`<div class="k">Last job</div><div class="v">${esc(JOB.name)}<small class="${JOB.ok?'':'neg'}">${JOB.ok?'ok':'failed'} · ${esc((JOB.at||'').slice(11,16))}</small></div>`:''}</div>`}},
+  xref:{title:'Cross-Reference',render:()=>xrefPanel()},
+  changes:{title:'What changed',render:()=>R.changes&&R.changes.rows&&R.changes.rows.length?`<div class="lbl" style="margin-bottom:6px">${esc(R.changes.since||'')}</div><div class="chgt">${R.changes.rows.map(r=>`<div class="k">${esc(r.k)}</div><div class="mono dim">${esc(r.a)}</div><div class="dim">→</div><div class="mono">${esc(r.b)}</div><div class="mono ${/^[+]/.test(r.d)?'pos':/^[-−]/.test(r.d)?'neg':''}">${esc(r.d)}</div>`).join('')}</div>`:'<span class="dim">No prior build to compare against.</span>'},
+  vexterm:{title:'VEX term structure',render:()=>`<div id="vexTerm"></div>`,after:()=>vexTerm($('#vexTerm'))},
+  history:{title:'Rail containment · last 12',render:()=>`<canvas id="hist" style="height:80px"></canvas>`,after:()=>spark($('#hist'),R.history)},
+  log:{title:'Pipeline log',render:()=>`<pre class="log">${esc(R.log||'')}</pre>`},
+};
+function vexTerm(host){
+  if(!host)return;const V=R.vex||{};const be=V.by_expiry||[];let html='';
+  if(be.length&&host.clientWidth<330){
+    html+=`<div style="display:grid;grid-template-columns:auto 1fr auto auto;gap:0 10px;font-size:11px;align-items:center"><div class="lbl">expiry</div><div></div><div class="lbl" style="text-align:right">vex</div><div class="lbl" style="text-align:right">gamma</div>
+      ${be.slice(0,10).map(e=>`<div class="mono dim">${esc(e.expiry.slice(5))} <span style="color:var(--ink3)">${e.dte}d</span></div><div class="mono dim" style="font-size:10px">${(e.atm_iv*100).toFixed(1)}%</div><div class="mono vio" style="text-align:right">${sgn(e.vex)}</div><div class="mono ${e.gamma>=0?'pos':'neg'}" style="text-align:right">${sgn(e.gamma)}</div>`).join('')}</div>${be.length>10?`<div class="dim" style="font-size:11px;margin-top:6px">+${be.length-10} more on the Gamma Ladder tab</div>`:''}`;
+    host.innerHTML=html;return;
+  }
+  if(be.length){
+    const mx=Math.max(...be.map(e=>Math.abs(e.vex)))||1, gm=Math.max(...be.map(e=>Math.abs(e.gamma)))||1;
+    html+=`<div class="lbl" style="margin-bottom:6px">Net VEX and net gamma per expiry · ${be.length} expiries</div>
+      <div style="display:grid;grid-template-columns:64px 1fr 48px 1fr 48px 44px;gap:0 6px;font-size:11px;align-items:center">
+      <div class="lbl" style="text-align:right">expiry</div><div class="lbl" style="text-align:center">vex</div><div></div><div class="lbl" style="text-align:center">gamma</div><div></div><div class="lbl" style="text-align:right">IV</div>
+      ${be.slice(0,14).map(e=>{const w=Math.abs(e.vex)/mx*50,g=Math.abs(e.gamma)/gm*50;return`<div class="mono" style="text-align:right;color:var(--ink2)">${esc(e.expiry.slice(5))}<span style="color:var(--ink3)"> ${e.dte}d</span></div>
+        <div class="tb"><i style="${e.vex>=0?'left:50%':'right:50%'};width:${w}%;background:var(--vio);opacity:${e.vex>=0?1:.6}"></i></div><div class="mono" style="text-align:right;color:var(--vio)">${sgn(e.vex)}</div>
+        <div class="tb"><i style="${e.gamma>=0?'left:50%':'right:50%'};width:${g}%;background:var(${e.gamma>=0?'--pos':'--neg'})"></i></div><div class="mono" style="text-align:right;color:var(${e.gamma>=0?'--pos':'--neg'})">${sgn(e.gamma)}</div>
+        <div class="mono" style="text-align:right;color:var(--ink3)">${(e.atm_iv*100).toFixed(1)}%</div>`}).join('')}</div>`;
+  }else html+=`<p style="margin:0 0 8px;color:var(--ink3);font-size:12px">Per-expiry VEX appears after the next pipeline run. Where the vanna sits by strike, from this build:</p>`;
+  const bs=Object.entries(V.by_strike||{}).map(([k,v])=>[+k,+v]).sort((a,b)=>Math.abs(b[1])-Math.abs(a[1])).slice(0,8);
+  if(bs.length){const ref=R.reference.price;html+=`<div class="lbl" style="margin:10px 0 4px">Largest strikes · per vol pt</div><div style="display:flex;flex-wrap:wrap;gap:4px">${bs.map(([k,v])=>`<span class="mono" style="font-size:11px;border:1px solid var(--rule);padding:2px 6px;border-radius:2px;color:var(--ink2)">${fmt0(k)} <b style="color:var(--vio)">${v>0?'+':'−'}${Math.abs(v).toFixed(1)}</b> <span style="color:var(--ink3)">${sgn(k-ref)}</span></span>`).join('')}</div>`}
+  host.innerHTML=html;
+}
+function renderWidgets(){
+  // Shared controls remain synchronized; the old sidebar widgets are retired.
+  if(!R)return;
+  $$('[data-book]').forEach(x=>x.classList.toggle('on',x.dataset.book===book));
+  $$('[data-qqq]').forEach(x=>x.classList.toggle('on',typeof qqqOn==='undefined'?true:qqqOn));
+  vexTerm($('#vexTerm2'));
+}
+
+$('#optAuto').checked=store.get('auto',true);$('#optAuto').onchange=e=>store.set('auto',e.target.checked);
+$('#optComm').checked=store.get('comm',false);$('#optComm').onchange=e=>store.set('comm',e.target.checked);
+$('#optBars').value=store.get('bars',240);$('#optBars').onchange=e=>{store.set('bars',+e.target.value);draw()};
+
+async function rebuild(){
+  if($('#rerun').disabled)return;$('#rerun').disabled=true;
+  const r=await api('/cc/api/run',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({commentary:store.get('comm',false)})});
+  if(!r){toast('Could not start — is teddy.py running?');$('#rerun').disabled=false;return}
+  toast('Pipeline started'+(store.get('comm',false)?' · plan update included':''));
+  const poll=setInterval(async()=>{const st=await api('/cc/api/state');if(!st||(paintSteps(st.steps)&&!st.running)){clearInterval(poll);$('#rerun').disabled=false;
+    const f=st&&st.steps.find(s=>s.state==='fail');toast(f?`${f.label} failed — see notes\\cc.log`:'Rebuilt');await loadReport()}},1000);
+}
+$('#rerun').onclick=rebuild;
+// Update Plan has two modes and the server says which. 'api' is the old in-process Anthropic call and polls
+// state.running to completion. 'request' (the default from 2026-09-08) writes notes/commentary_request.json
+// for a Claude session to answer — there is no progress to poll, so the button holds a WAITING state until
+// the request file goes away and reloads the sheet when it does. Clicking while waiting takes the request back.
+let CMT=null;                                    // state.commentary: {mode, request}
+function paintRewrite(){
+  const b=$('#rewrite'); if(!b)return;
+  const req=CMT&&CMT.request;
+  b.classList.toggle('waiting',!!req);
+  if(req){
+    b.innerHTML=`Plan requested<kbd>${req.expired?'stale':Math.round(req.age_min)+'m'}</kbd>`;
+    b.title=req.expired
+      ? `Requested ${req.at} and not answered in ${Math.round(req.age_min)} minutes. Ask Claude for the plan, or click to cancel.`
+      : `Requested ${req.at} for ${req.report_date} ${req.rail_label}. A Claude session with the folder rewrites it — the scheduled one, or ask in a chat. Click to cancel.`;
+  }else if(b.dataset.orig){b.innerHTML=b.dataset.orig;b.title=b.dataset.origTitle||''}
+}
+$('#rewrite').dataset.orig=$('#rewrite').innerHTML;
+$('#rewrite').dataset.origTitle=$('#rewrite').title;
+$('#rewrite').onclick=async()=>{
+  if(CMT&&CMT.request){                          // already waiting: this click takes it back
+    const c=await api('/cc/api/commentary',{method:'DELETE'});
+    toast(c&&c.ok?'Request cancelled':'Could not cancel');
+    CMT={...CMT,request:null};paintRewrite();return}
+  $('#rewrite').disabled=true;const r=await api('/cc/api/commentary',{method:'POST'});
+  if(!r||!r.ok){toast(r&&r.error==='pipeline running'?'Wait for the pipeline to finish':'Could not start — is teddy.py running?');$('#rewrite').disabled=false;return}
+  $('#rewrite').disabled=false;
+  if(r.mode==='request'){
+    CMT={...(CMT||{}),request:r.request};paintRewrite();
+    toast(r.fresh?'Plan requested — Claude will rewrite it':'Already requested for this plan');return}
+  $('#rewrite').disabled=true;
+  toast('Updating the plan…');
+  const poll=setInterval(async()=>{const st=await api('/cc/api/state');if(!st||!st.running){clearInterval(poll);$('#rewrite').disabled=false;if(st)paintSteps(st.steps);
+    const c=st&&st.steps.find(s=>s.id==='comment');toast(c&&c.state==='ok'?'Plan updated':'Plan update failed — see notes\\cc.log');await loadReport()}},1000)};
+
+/* ---------- keyboard ---------- */
+addEventListener('keydown',e=>{
+  if(e.ctrlKey||e.metaKey||e.altKey)return;
+  const typing=/^(INPUT|SELECT|TEXTAREA)$/.test(e.target.tagName);
+  if(e.key==='Escape'){$('#drawer').classList.remove('open');if(typing)e.target.blur();return}
+  if(typing)return;
+  if(e.key==='t')$('#themeBtn').click();
+  else if(e.key==='r')rebuild();
+  else if(e.key==='f')$('#tgFit').click();
+  else if(e.key==='q')setView('terminal');else if(e.key==='w')setView('ladder');else if(e.key==='e')setView('plan');
+  else if(/^[1-6]$/.test(e.key))$$('[data-tf]')[+e.key-1].click();
+});
+
+/* ---------- chart source: teddychart in the row when it is up, the built-in canvas otherwise ---------- */
+function applyChartSrc(){
+  const pref=store.get('chartSrc','auto'), up=!!(CHART&&CHART.up);
+  const want=pref==='builtin'?'builtin':pref==='chart'?(up?'chart':'builtin'):(up?'chart':'builtin');
+  $$('[data-src]').forEach(b=>{b.classList.toggle('on',b.dataset.src===want);if(b.dataset.src==='chart'){b.disabled=!up;b.title=up?'teddychart — footprint, large lots, TPO, volume profile, CVD, depth':'teddychart is not running (Start TeddyAI.bat starts it, or teddychart\\run.bat)'}});
+  const fr=$('#chartFrame'),wrap=$('#chartWrap');
+  if(want==='chart'){
+    if(!fr.src||chartSrc!=='chart')fr.src=CHART.url+'/';
+    fr.hidden=false;$('#chart').hidden=true;$('#legend').hidden=true;wrap.classList.add('tall');
+    $('#tfTools').hidden=true;$('#builtinTools').hidden=true;$('#chartTools').hidden=false;if(!ccApi())$('#chartPop').href=CHART.url+'/';
+    $('#chartMeta').textContent='teddychart · prints, footprint, TPO, depth · levels from the sheet';
+  }else{
+    fr.hidden=true;if(fr.src)fr.removeAttribute('src');$('#chart').hidden=false;$('#legend').hidden=false;wrap.classList.remove('tall');
+    $('#tfTools').hidden=false;$('#builtinTools').hidden=false;$('#chartTools').hidden=true;
+    $('#chartMeta').textContent=tfLabel()+' · levels from the sheet';
+    draw();
+  }
+  chartSrc=want;
+}
+$$('[data-src]').forEach(b=>b.onclick=()=>{store.set('chartSrc',b.dataset.src==='chart'?'auto':'builtin');applyChartSrc()});
+const frameSend=m=>{const fr=$('#chartFrame');if(fr&&!fr.hidden&&fr.contentWindow&&CHART)fr.contentWindow.postMessage(m,CHART.url)};
+$$('[data-cc]').forEach(b=>b.onclick=()=>frameSend({t:'toggle',key:b.dataset.cc}));
+$$('[data-fit]').forEach(b=>b.onclick=()=>frameSend({t:'fit'}));
+$$('[data-follow]').forEach(b=>b.onclick=()=>frameSend({t:'follow'}));
+let chartFlow=null;
+addEventListener('message',e=>{if(!CHART||e.source!==$('#chartFrame')?.contentWindow)return;try{if(e.origin!==new URL(CHART.url).origin)return}catch{return}const m=e.data||{};
+  if(m.t==='flow')chartFlow=m;
+  if(m.t==='state'&&m.settings){$$('[data-cc]').forEach(b=>b.classList.toggle('on',!!m.settings[b.dataset.cc]));$$('[data-follow]').forEach(b=>b.classList.toggle('on',!!m.settings.follow))}});
+
+/* ---------- the tape: /cc/api/ticks (SSE) -> forming bars + per-print setup status ---------- */
+const TAPE={es:null,connected:false,n:0,last:null,lastMs:null,ts:[],px:[],dayOpen:null,st:new Map(),bars:[],barsTf:0,_prev:null,
+  connect(){if(this.es)return;try{const es=new EventSource('/cc/api/ticks');this.es=es;
+    es.onopen=()=>{this.connected=true;setFeed()};
+    es.onerror=()=>{this.connected=false;setFeed()};
+    es.addEventListener('status',e=>{try{const s=JSON.parse(e.data);if(s.day_open_ms&&s.day_open_ms!==this.dayOpen){this.dayOpen=s.day_open_ms;if(this.n&&s.n<this.n)this.reset()}TK=s;setFeed()}catch{}});
+    es.addEventListener('prints',e=>{try{const [ts,px]=JSON.parse(e.data);this.add(ts,px)}catch{}})}catch{}},
+  reset(){this.ts=[];this.px=[];this.n=0;this.last=null;this.lastMs=null;this._prev=null;this.st.clear();this.bars=[];this.barsTf=tf},
+  add(ts,px){if(this.barsTf!==tf){this.barsTf=tf;this.bars=[]}for(let i=0;i<ts.length;i++){this.ts.push(ts[i]);this.px.push(px[i]);this.fold(px[i],ts[i]);this.bar(ts[i],px[i])}this.n+=ts.length;if(ts.length){this.last=px[px.length-1];this.lastMs=ts[ts.length-1]}
+    if(!R)return;paintLast();renderSetups();draw();if(!this._q){this._q=setTimeout(()=>{this._q=null;renderQuote();drawExpo();renderXL()},2000)}},
+  bar(t,p){const w=tf*1000,b=Math.floor(t/w)*w,L=this.bars.at(-1);if(L&&L.t===b){L.c=p;if(p>L.h)L.h=p;if(p<L.l)L.l=p}else this.bars.push({t:b,o:p,h:p,l:p,c:p,v:0})},
+  rebars(){this.bars=[];this.barsTf=tf;for(let i=0;i<this.ts.length;i++)this.bar(this.ts[i],this.px[i])},
+  refold(){this.st.clear();this._prev=null;for(let i=0;i<this.px.length;i++)this.fold(this.px[i],this.ts[i])},
+  covers(ms){return this.ts.length>0&&this.ts[0]<=ms},
+  fold(px,ts){if(!R)return;const prev=this._prev;this._prev=px;
+    for(const s of R.setups){if(ts<cardStartMs(s))continue;                                                  // per-card floor, not one gate for the plan
+      const key=s.name+'|'+s.entry;let t=this.st.get(key);if(!t){t={trig:false,best:-1,done:null,at:{},near:null};this.st.set(key,t)}   // at: level -> ms it first printed
+      if(t.done)continue;const tps=tpsOf(s);
+      const crossed=lvl=>(prev!=null&&(prev-lvl)*(px-lvl)<=0)||Math.abs(px-lvl)<0.13;
+      if(!t.trig){if(crossed(s.entry)){t.trig=true;t.at.entry=ts}else{const d=Math.abs(px-s.entry);if(!t.near||d<t.near.d)t.near={d,px,t:ts}}continue}
+      const hitSL=s.side==='long'?px<=s.sl:px>=s.sl;
+      tps.forEach((tp,j)=>{if((s.side==='long'?px>=tp:px<=tp)&&t.at['tp'+j]==null){t.at['tp'+j]=ts;t.best=Math.max(t.best,j)}});
+      if(hitSL){t.at.sl=ts;t.done=t.best>=0?{k:'played',l:`Played · T${t.best+1} then stop`,p:1,at:t.at}:{k:'invalid',l:'Invalidated',p:0,at:t.at}}
+      else if(t.best===tps.length-1)t.done={k:'played',l:`Played · T${t.best+1}`,p:1,at:t.at}}},
+  status(s,tps){const t=this.st.get(s.name+'|'+s.entry);if(!t)return null;if(t.done)return t.done;
+    if(!t.trig)return testedStatus(s,t.near)||{k:'pending',l:'Not triggered',p:0,at:t.at};
+    const p=Math.max(0,Math.min(1,(this.last-s.entry)/((tps[0]??s.tp)-s.entry)));
+    return{k:'active',l:t.best>=0?`In play · T${t.best+1} hit`:'In play · tape',p:t.best>=0?1:p,at:t.at}}};
+function chartBars(){
+  if(TAPE.barsTf!==tf&&TAPE.ts.length)TAPE.rebars();
+  const tb=TAPE.bars; if(!tb.length)return hist;
+  const first=tb[0].t; return [...hist.filter(b=>b.t<first),...tb];
+}
+function parseTf(v){return v.endsWith('s')?parseInt(v):parseInt(v)*60}
+$$('[data-tf]').forEach(b=>b.onclick=async()=>{tf=parseTf(b.dataset.tf);store.set('tf',b.dataset.tf);$$('[data-tf]').forEach(x=>x.classList.toggle('on',x===b));$('#chartMeta').textContent=tfLabel()+' · levels from the sheet'+(tf<60&&!TAPE.n?' · needs the tape':'');await loadHistory();TAPE.rebars();draw()});
+{const saved=store.get('tf',null);const b=saved&&$$('[data-tf]').find(x=>x.dataset.tf===saved);if(b){tf=parseTf(saved);$$('[data-tf]').forEach(x=>x.classList.toggle('on',x===b))}}
+$('#tgRails').onclick=e=>{showRails=!showRails;e.target.classList.toggle('on');draw()};
+$('#tgLadder').onclick=e=>{showLadder=!showLadder;e.target.classList.toggle('on');draw()};
+$('#tgSetups').onclick=e=>{showSetups=!showSetups;e.target.classList.toggle('on');draw()};
+$('#tgFit').onclick=e=>{fitLevels=!fitLevels;e.target.classList.toggle('on');draw()};
+document.addEventListener('click',async e=>{const sp=e.target.closest('[data-speed]');if(sp){const r=await api('/cc/api/ticks/speed',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({speed:+sp.dataset.speed})});toast(r&&r.ok?`Tape at ${sp.dataset.speed}× — match teddychart's speed buttons`:'Speed applies to a replay only');return}const b=e.target.closest('[data-book]');if(!b)return;book=b.dataset.book;store.set('book',book);$$('[data-book]').forEach(x=>x.classList.toggle('on',x.dataset.book===book));drawExpo();renderLevels();renderXL(true);const bc=$('#biasCell');if(bc)bc.outerHTML=biasCell()});
+$$('[data-book]').forEach(x=>x.classList.toggle('on',x.dataset.book===book));
+let qqqOn=store.get('qqq',true);
+document.addEventListener('click',e=>{const q=e.target.closest('[data-qqq]');if(!q)return;qqqOn=!qqqOn;store.set('qqq',qqqOn);$$('[data-qqq]').forEach(x=>x.classList.toggle('on',qqqOn));drawExpo()});
+$$('[data-qqq]').forEach(x=>x.classList.toggle('on',qqqOn));
+function tteClose(){const S=R.session;
+  if(S.asof&&S.hours)return new Date(S.asof).getTime()+S.hours*36e5;
+  if(S.date)return new Date(S.date+'T20:00:00Z').getTime();
+  return NaN}
+function ttePast(){const c=tteClose();return !isNaN(c)&&nowMs()>=c}
+function tteText(){
+  const S=R.session;let exp;
+  if(S.asof&&S.hours)exp=new Date(S.asof).getTime()+S.hours*36e5; else if(S.date)exp=new Date(S.date+'T20:00:00Z').getTime(); else return S.hours?S.hours+'h':'—';
+  const m=(exp-nowMs())/6e4;
+  // Past its own close the plan is not 'expired' -- it is still the plan until the next OI book replaces it
+  // (Mark, 2026-09-07), which is exactly when the levels are being traded on a stale book. Show its age.
+  if(m<=0){const a=(nowMs()-(Date.parse(S.published_at||S.live_from||'')||exp))/36e5;
+    return a>=0&&a<400?`${a<1?Math.round(a*60)+'m':a.toFixed(1)+'h'} old`:'past its close'}
+  if(m>24*60)return `${(m/60).toFixed(1)}h`;
+  return `${Math.floor(m/60)}h ${String(Math.floor(m%60)).padStart(2,'0')}m`;
+}
+function synthBars(p){let a=[],c=p-30,t=Date.now()-240*6e4;for(let i=0;i<240;i++){const o=c;c+=(Math.random()-.5)*14;a.push({t:t+i*6e4,o,h:Math.max(o,c)+Math.random()*5,l:Math.min(o,c)-Math.random()*5,c,v:0})}return a}
+
+/* ---------- chart ---------- */
+const cv=$('#chart'),cx=cv.getContext('2d');
+function css(v){return getComputedStyle(root).getPropertyValue(v).trim()}
+let drawQueued=false;
+function draw(){if(drawQueued)return;drawQueued=true;requestAnimationFrame(()=>{drawQueued=false;drawNow()})}
+function drawNow(){
+  if(!R||cv.hidden)return;
+  const dpr=devicePixelRatio||1,W=cv.clientWidth,H=cv.clientHeight;if(!W)return;cv.width=W*dpr;cv.height=H*dpr;cx.setTransform(dpr,0,0,dpr,0,0);cx.clearRect(0,0,W,H);
+  const n=+store.get('bars',240),data=chartBars().slice(-n);
+  const narrow=W<620,padL=8,padR=narrow?86:124,padT=30,padB=24,plotW=W-padL-padR,plotH=H-padT-padB;
+  const MONO='"IBM Plex Mono",ui-monospace,Menlo,monospace';
+  if(!data.length){cx.fillStyle=css('--ink3');cx.font='13px '+MONO;cx.textAlign='center';cx.fillText(tf<60?'second bars are built from prints — waiting for the tape':'waiting for the tape — the 1-min cache seeds the history, prints build the rest',W/2,H/2);return}
+  const cw=plotW/data.length;
+  let lo=Math.min(...data.map(b=>b.l)),hi=Math.max(...data.map(b=>b.h));
+  const span=Math.max(hi-lo,40);
+  const want=[...(showRails?[R.rails.lo,R.rails.hi]:[]),...(fitLevels?Object.values(R.flips):[]),R.reference.price];
+  want.forEach(v=>{if(v!=null&&v>lo-span*.6&&v<hi+span*.6){lo=Math.min(lo,v);hi=Math.max(hi,v)}});
+  const m=(hi-lo)*.08;lo-=m;hi+=m;
+  const y=p=>padT+(hi-p)/(hi-lo)*plotH;
+  // faint horizontal grid
+  cx.strokeStyle=css('--rule');cx.lineWidth=1;cx.setLineDash([]);const step=niceStep((hi-lo)/6);for(let g=Math.ceil(lo/step)*step;g<hi;g+=step){cx.globalAlpha=.6;cx.beginPath();cx.moveTo(padL,y(g));cx.lineTo(W-padR,y(g));cx.stroke();cx.globalAlpha=1;cx.fillStyle=css('--ink3');cx.font='10px '+MONO;cx.textAlign='left';cx.fillText(fmt0(g),W-padR+9,y(g)+3)}
+  const placed=[];
+  const tag=(txt,yy,col,fill)=>{if(!fill){let y2=yy;for(let k=0;k<6&&placed.some(p=>Math.abs(p-y2)<12);k++)y2+=12;yy=y2;placed.push(yy)}cx.font='500 11px '+MONO;cx.textAlign='left';const w=cx.measureText(txt).width+10;
+    if(fill){cx.fillStyle=col;cx.fillRect(W-padR+4,yy-9,w,18);cx.fillStyle=css('--panel');cx.fillText(txt,W-padR+9,yy+4)}else{cx.fillStyle=css('--panel');cx.fillRect(W-padR+4,yy-8,w,16);cx.fillStyle=col;cx.fillText(txt,W-padR+9,yy+4)}};
+  const line=(p,col,dash,label,w=1)=>{if(p==null||p<lo||p>hi)return;cx.save();cx.strokeStyle=col;cx.lineWidth=w;cx.setLineDash(dash);cx.beginPath();cx.moveTo(padL,y(p));cx.lineTo(W-padR,y(p));cx.stroke();cx.restore();tag(label,y(p),col,false)};
+  if(showLadder){const rows=(R.ladder[book]||Object.values(R.ladder)[0]||[]).filter(r=>r[2]!=='flip'&&r[0]>lo&&r[0]<hi),mx=Math.max(...rows.map(r=>Math.abs(r[1])))||1;
+    rows.forEach(([k,v])=>{if(!v)return;cx.fillStyle=v>0?css('--pos'):css('--neg');cx.globalAlpha=.05+Math.abs(v)/mx*.13;const hh=Math.max(2,Math.min(14,plotH/((hi-lo)/12.5)));cx.fillRect(padL,y(k)-hh/2,plotW,hh);cx.globalAlpha=1;
+      if(!narrow&&Math.abs(v)>=mx*.5){cx.fillStyle=css('--ink3');cx.font='10px '+MONO;cx.textAlign='left';cx.fillText(fmt0(k)+'  '+sgn(v),padL+4,y(k)-3)}})}
+  if(showRails){const a=Math.max(lo,R.rails.lo),b=Math.min(hi,R.rails.hi);if(b>a){cx.fillStyle=css('--ink3');cx.globalAlpha=.07;cx.fillRect(padL,y(b),plotW,y(a)-y(b));cx.globalAlpha=1}
+    line(R.rails.hi,css('--ink3'),[2,4],'rail '+fmt0(R.rails.hi));line(R.rails.lo,css('--ink3'),[2,4],'rail '+fmt0(R.rails.lo))}
+  Object.entries(R.flips).forEach(([b,v])=>line(v,css('--warn'),[6,4],(b==='0dte'?'0DTE':b)+' flip '+fmt0(v)));
+  line(R.reference.price,css('--brass'),[],'ref '+fmt(R.reference.price),1.5);
+  data.forEach((b,i)=>{const x=padL+i*cw+cw/2,up=b.c>=b.o;cx.strokeStyle=cx.fillStyle=up?css('--pos'):css('--neg');cx.lineWidth=1;cx.beginPath();cx.moveTo(x,y(b.h));cx.lineTo(x,y(b.l));cx.stroke();const bw=Math.max(1,cw*.62);cx.fillRect(x-bw/2,Math.min(y(b.o),y(b.c)),bw,Math.max(1,Math.abs(y(b.o)-y(b.c))))});
+  const last=lastPrice()??data.at(-1).c;cx.save();cx.strokeStyle=css('--ink');cx.lineWidth=1;cx.setLineDash([1,3]);cx.beginPath();cx.moveTo(padL,y(last));cx.lineTo(W-padR,y(last));cx.stroke();cx.restore();tag(fmt(last),y(last),css('--ink'),true);
+  const off=[];Object.entries(R.flips).forEach(([b,v])=>{if(v<lo||v>hi)off.push([(b==='0dte'?'0DTE':b)+' flip',v])});
+  if(showRails)[['rail',R.rails.lo],['rail',R.rails.hi]].forEach(([l,v])=>{if(v<lo||v>hi)off.push([l,v])});
+  cx.font='10.5px '+MONO;cx.fillStyle=css('--ink3');cx.textAlign='center';
+  off.filter(([,v])=>v>hi).sort((a,b)=>a[1]-b[1]).forEach(([l,v],i)=>cx.fillText(`▲ ${l} ${fmt0(v)} · ${sgn(v-last)}`,padL+plotW/2,padT+12*i-4));
+  off.filter(([,v])=>v<lo).sort((a,b)=>b[1]-a[1]).forEach(([l,v],i)=>cx.fillText(`▼ ${l} ${fmt0(v)} · ${sgn(v-last)}`,padL+plotW/2,H-padB-4-12*i));
+  if(showSetups)R.setups.forEach(s=>{const st=statusOf(s);const live=st.k==='active';const col=st.k==='played'?css('--pos'):st.k==='invalid'?css('--neg'):live?css('--brass'):css('--ink2');
+    const lab=narrow?letterOf(s):letterOf(s)+' · '+shortTitle(s,14);
+    if(live){[[s.entry,[],1.2],[s.sl,[4,4],1],...tpsOf(s).map(t=>[t,[1,3],1])].forEach(([p,dash,w])=>{if(p<lo||p>hi)return;cx.save();cx.strokeStyle=col;cx.globalAlpha=.9;cx.lineWidth=w;cx.setLineDash(dash);cx.beginPath();cx.moveTo(padL,y(p));cx.lineTo(W-padR,y(p));cx.stroke();cx.restore()})}
+    else if(s.entry>=lo&&s.entry<=hi){cx.save();cx.strokeStyle=col;cx.globalAlpha=(st.k==='pending'||st.k==='tested')?.45:.3;cx.lineWidth=1;cx.setLineDash([8,5]);cx.beginPath();cx.moveTo(padL,y(s.entry));cx.lineTo(W-padR,y(s.entry));cx.stroke();cx.restore()}
+    if(s.entry<lo||s.entry>hi){cx.font='600 9.5px '+MONO;cx.fillStyle=col;cx.textAlign='left';const yy=s.entry>hi?padT+12*(off.filter(([,v])=>v>hi).length+R.setups.filter(x=>x.entry>hi&&x!==s&&R.setups.indexOf(x)<R.setups.indexOf(s)).length)-4:H-padB-4-12*(off.filter(([,v])=>v<lo).length+R.setups.filter(x=>x.entry<lo&&x!==s&&R.setups.indexOf(x)<R.setups.indexOf(s)).length);
+      cx.fillText(`${s.entry>hi?'▲':'▼'} ${lab} entry ${fmt0(s.entry)} · ${sgn(s.entry-last)} · ${st.l.toLowerCase()}`,padL+4,yy);return}
+    cx.font='600 9.5px '+MONO;const lw=cx.measureText(lab).width+8;
+    cx.fillStyle=css('--panel');cx.fillRect(W-padR-16-lw,y(s.entry)-8,lw,16);cx.strokeStyle=col;cx.lineWidth=1;cx.strokeRect(W-padR-16-lw+.5,y(s.entry)-7.5,lw-1,15);
+    cx.fillStyle=col;cx.textAlign='right';cx.fillText(lab,W-padR-20,y(s.entry)+3.5);cx.beginPath();cx.arc(W-padR-8,y(s.entry),3.5,0,7);cx.fill()});
+  cx.fillStyle=css('--ink3');cx.font='10.5px '+MONO;
+  for(let i=0;i<data.length;i+=Math.ceil(data.length/6)){const d=new Date(data[i].t);cx.textAlign=i===0?'left':'center';cx.fillText(d.toLocaleTimeString([],tf<60?{hour:'2-digit',minute:'2-digit',second:'2-digit'}:{hour:'2-digit',minute:'2-digit'}),padL+i*cw,H-7)}
+}
+function niceStep(r){const p=Math.pow(10,Math.floor(Math.log10(r||1)));const f=r/p;return (f<1.5?1:f<3.5?2.5:f<7.5?5:10)*p}
+
+/* ---------- live re-pricing: the sheet's OI and IV (chain_live.json), gamma re-solved at the last print
+   and the real clock. Every book's underlying is shifted by (last - F_ref), the same convention trinity_db
+   uses for the flip, so the sheet is recovered exactly at shift 0 and plan time. IV is held at the build's
+   smile -- there is no options tape here -- and OI is the prior settle either way. ---------- */
+const LIVE={chain:null,cache:{}};
+const YEAR=31557600000;
+function modelTau(C,now){
+  const a=C.clock_knots;if(!a||a.length<2)throw Error('Rebuild chain_live: business clock is missing');
+  if(now<a[0][0]||now>a[a.length-1][0])throw Error('Rebuild chain_live: time outside exported clock');
+  let l=0,h=a.length-1;while(h-l>1){const m=(l+h)>>1;if(a[m][0]<=now)l=m;else h=m}
+  return a[l][1]+(a[h][1]-a[l][1])*(now-a[l][0])/(a[h][0]-a[l][0]);
+}
+function modelT(C,b,now){
+  if(Date.parse(b.expiry)<=now)return 0;
+  if(C.time_basis==='sessions')return Math.max(0,modelTau(C,Date.parse(b.expiry))-modelTau(C,now))/(C.sessions_per_year||252);
+  return (Date.parse(b.expiry)-now)/YEAR;
+}
+function modelIV(b,K,F,iv){
+  const a=b.smile;if(!a||!a.length)return iv;
+  const m=Math.log(K/F),n=a.length;let v;
+  if(m>=a[0][0]&&m<=a[n-1][0]){
+    if(n===1)return a[0][1];let l=0,h=n-1;while(h-l>1){const j=(l+h)>>1;if(a[j][0]<=m)l=j;else h=j}
+    return a[l][1]+(a[h][1]-a[l][1])*(m-a[l][0])/(a[h][0]-a[l][0]);
+  }
+  const low=m<a[0][0],k=Math.max(2,Math.min(5,Math.floor(n/4))),z=low?a.slice(0,k):a.slice(-k);
+  const mx=z.reduce((s,p)=>s+p[0],0)/z.length,my=z.reduce((s,p)=>s+p[1],0)/z.length;
+  let num=0,den=0;for(const p of z){num+=(p[0]-mx)*(p[1]-my);den+=(p[0]-mx)**2}
+  const p=low?a[0]:a[n-1];v=p[1]+(den?num/den:0)*(m-p[0]);return Math.min(Math.max(v,.5*b.atm_iv),2*b.atm_iv);
+}
+function roundEven(x){const l=Math.floor(x),f=x-l;return Math.abs(f-.5)<1e-12?(l%2===0?l:l+1):Math.round(x)}
+function modelStrike(b,K){return b.basis?roundEven((K-b.basis)/(b.grid||25))*(b.grid||25):K}
+function modelGamma(C,b,shift,now){
+  const F=b.F+shift,T=modelT(C,b,now),g={};if(T<=0||F<=0)return g;
+  for(const [K,n,iv] of b.strikes){if(K<=0||Math.abs(Math.log(K/F))>(b.cap??.25))continue;
+    const k=modelStrike(b,K);g[k]=(g[k]||0)+n*bsGamma(F,K,modelIV(b,K,F,iv),T)*.01*F}
+  return g;
+}
+function bsGamma(F,K,sig,T){if(T<=0||sig<=0)return 0;const sq=sig*Math.sqrt(T),d1=(Math.log(F/K)+.5*sig*sig*T)/sq;return Math.exp(-.5*d1*d1)/2.5066282746310002/(F*sq)}
+// sel: an optional Set of expiry dates ('YYYY-MM-DD'). Only the Gamma Ladders panel passes one (its expiry chips); every
+// other caller leaves it null and gets the 0DTE / near / full books exactly as before.
+function bookPick(bk,sel){return b=>sel?sel.has(b.expiry.slice(0,10)):(bk==='0dte'?b.dte===0:bk==='near'?b.dte<=9:true)}
+function liveBooks(bk,sel){const C=LIVE.chain;if(!C)return[];return C.books.filter(bookPick(bk,sel))}
+function liveGamma(bk,last,now,sel){
+  const C=LIVE.chain,g={};if(!C)return g;
+  for(const b of liveBooks(bk,sel))for(const [k,v] of Object.entries(modelGamma(C,b,last-C.F_ref,now)))g[k]=(g[k]||0)+v;
+  return g;
+}
+function liveTotal(bk,shift,now,sel){const C=LIVE.chain;let t=0;for(const b of liveBooks(bk,sel))for(const v of Object.values(modelGamma(C,b,shift,now)))t+=v;return t}
+function liveFlip(bk,last,now,sel){           // zero crossings of total gamma, F_ref +/- 500, coarse sweep then a linear refine; the one nearest price
+  const C=LIVE.chain;if(!C||!liveBooks(bk,sel).length)return null;const xs=[];let prev=null;
+  for(let x=-500;x<=500;x+=5){const t=liveTotal(bk,x,now,sel);if(prev&&((prev[1]<0&&t>=0)||(prev[1]>=0&&t<0)))xs.push(C.F_ref+prev[0]+(0-prev[1])*(x-prev[0])/(t-prev[1]));prev=[x,t]}
+  if(!xs.length)return null;return xs.reduce((a,b)=>Math.abs(b-last)<Math.abs(a-last)?b:a);
+}
+function liveState(bk,sel){               // memoised per (book, selection, last to the tick, minute)
+  if(!LIVE.chain)return null;const last=lastPrice()??R.reference.price,now=nowMs();const key=bk+'|'+(sel?[...sel].join(','):'')+'|'+last+'|'+Math.floor(now/60000);
+  if(LIVE.cache[key])return LIVE.cache[key];
+  const g=liveGamma(bk,last,now,sel),net=Object.values(g).reduce((a,b)=>a+b,0);
+  const st={g,net,flip:liveFlip(bk,last,now,sel),last,now,near:Object.entries(g).reduce((a,[k,v])=>Math.abs(+k-last)<=(R.rails.em||R.session.em)?a+v:a,0)};
+  LIVE.cache={[key]:st};return st;
+}
+
+/* ---------- cross-reference (step 6a, 2026-09-06): the equity books beside NQ. XREF.data is
+   data/opra/<settle>-compare.json (five books in $M per 1%, the daily factors, pairs, cross); XREF.qqq is
+   QQQ's chain_live.json in exactly NQ's shape, re-priced by the same bsGamma and put on the NQ axis
+   through the day's factor k = QQQ points per NQ point. NQ-equivalent bars: QQQ contracts of delta per 1%
+   x (F_qqq x 100) / (F_nq x 20) = x 5k, so a QQQ bar and an NQ bar of the same length hedge the same
+   dollars. SPX/SPY never go on this axis: their dealers hedge in ES, not NQ. ---------- */
+const XREF={data:null,qqq:null,cache:{}};
+const NQ_GRID=25;
+/* k must be QQQ points per point OF THE CONTRACT THE TAPE IS ON. The compare stamps the NQ contract its factor
+   was struck against (mapping.nq_ref_symbol); when that is not the contract the sheet and the tape are on -- a
+   compare written before the roll pin, or by an opra_compare that did not pass a reference -- the factor is
+   rebuilt from the two chain_live references, both struck at the same settle instant. 2026-09-16: an NQU6
+   factor against an NQZ6 print put QQQ's estimated spot one percent high and the QQQ ghost 292 points off
+   the NQ axis. qqqFactorSrc() says which happened, for the panel. */
+function qqqRefMismatch(){const M=XREF.data&&XREF.data.mapping,ref=LIVE.chain&&LIVE.chain.ref_symbol;
+  return !!(M&&M.qqq_per_nq_point&&M.nq_ref_symbol&&ref&&M.nq_ref_symbol!==ref)}
+function qqqFactor(){const M=XREF.data&&XREF.data.mapping;
+  if(M&&M.qqq_per_nq_point&&!qqqRefMismatch())return M.qqq_per_nq_point;
+  if(XREF.qqq&&LIVE.chain&&LIVE.chain.F_ref)return XREF.qqq.F_ref/LIVE.chain.F_ref;
+  return M&&M.qqq_per_nq_point||null}
+function qqqFactorSrc(){const M=XREF.data&&XREF.data.mapping;
+  if(M&&M.qqq_per_nq_point&&!qqqRefMismatch())return`compare · ${esc(M.nq_ref_symbol||'NQ')}`;
+  if(XREF.qqq&&LIVE.chain&&LIVE.chain.F_ref)return`chain_live ${esc(LIVE.chain.ref_symbol||'NQ')} ${fmt(LIVE.chain.F_ref)}`+(qqqRefMismatch()?` · compare was struck on ${esc(M.nq_ref_symbol)}`:'');
+  return M&&M.qqq_per_nq_point?`compare · ${esc(M.nq_ref_symbol||'NQ')} · no chain_live to check it against`:''}
+function qqqState(bk){                    // {g:{nqStrike: NQ-equivalent contracts per 1%}, net, k, last_q}
+  const Q=XREF.qqq,k=qqqFactor();if(!Q||!k)return null;
+  const last=lastPrice()??R.reference.price,now=nowMs(),key='q|'+bk+'|'+last+'|'+Math.floor(now/60000);
+  if(XREF.cache[key])return XREF.cache[key];
+  const lq=last*k,sh=lq-Q.F_ref,conv=5*k,g={};let net=0;
+  for(const b of Q.books.filter(b=>bk==='0dte'?b.dte===0:bk==='near'?b.dte<=9:true)){
+    for(const [K,value] of Object.entries(modelGamma(Q,b,sh,now))){const v=value*conv;const ks=roundEven(+K/k/NQ_GRID)*NQ_GRID;g[ks]=(g[ks]||0)+v;net+=v}}
+  const st={g,net,k,last_q:lq,books:Q.books.length};XREF.cache={[key]:st};return st;
+}
+function xrefPanel(){
+  const X=XREF.data;
+  if(!X){const miss=XREF.missing||[];return`<span class="dim">Appears after <span class="mono">opra_compare.py</span> runs for this settle${miss.length?` — no equity chain for: <span class="mono">${esc(miss.join(' '))}</span>`:''}. Numbers only; the dominance hypothesis is untested until <span class="mono">backtest_opra.py</span> says otherwise.</span>`}
+  const B=X.books,names=Object.keys(B),short=n=>n.replace('SPX complex (SPX+SPXW)','SPX cx').replace('NDX complex (QQQ+NQ)','NDX cx').replace('SPX complex (SPX+SPXW+SPY)','SPX cx');
+  const m=(f,cls)=>names.map(n=>`<div class="v mono ${cls?cls(B[n]):''}">${f(B[n])}</div>`).join('');
+  const pct=v=>v==null?'—':(v>0?'+':'')+v.toFixed(2)+'%';
+  const musd=v=>{if(v==null)return'—';const a=Math.abs(v),sg=v<0?'−':'';return a>=1000?sg+(a/1000).toFixed(1)+'B':sg+a.toFixed(0)+'M'};
+  const sgnc=b=>b.within_1pct_musd>=0?'pos':'neg';
+  let h=`<div class="xr"><div class="h">$ dealer γ / 1%</div>${names.map(n=>`<div class="h" title="${esc(n)}">${esc(short(n))}</div>`).join('')}
+    <div class="k">reference</div>${m(b=>b.ref>=1000?fmt0(b.ref):b.ref.toFixed(1))}
+    <div class="k">within 1 EM</div>${m(b=>musd(b.within_em_musd),sgnc)}
+    <div class="k">within 1%</div>${m(b=>musd(b.within_1pct_musd),sgnc)}
+    <div class="k">0DTE at spot</div>${m(b=>b.panels['0DTE'].expiries?musd(b.panels['0DTE'].at_spot_musd):'<span class="dim">no book</span>')}
+    <div class="sec"></div>
+    <div class="k">flip · full</div>${m(b=>pct(b.panels.FULL.flip_pct))}
+    <div class="k">flip · 0DTE</div>${m(b=>pct(b.panels['0DTE'].flip_pct))}
+    <div class="k">ATM IV</div>${m(b=>(b.atm_iv*100).toFixed(2)+'%')}
+    <div class="sec"></div>
+    <div class="k">quote</div>${m(b=>esc(b.quote_anchor==='settlement'?'settle':b.quote_anchor))}
+    <div class="k">age at plan</div>${m(b=>`${b.age_hours}h${b.stale?' <b class="neg">STALE</b>':''}`)}
+    <div class="k">OI as of</div>${m(b=>esc((b.oi_vintage||'').replace(/^OI as of \d{4}-(\S+) close.*/,'$1').replace(/^STALE.*/,'STALE').replace(/^preliminary$/,'prelim').replace(/^final$/,'final')))}
+  </div>`;
+  const P=X.pairs,C=X.cross,M=X.mapping;
+  const pr=p=>`<span>${esc(short(p.a))} vs ${esc(short(p.b))}: <b class="mono">${p.same_sign?'same sign':'OPPOSITE'}</b>, flips ${pct(p.a_flip_pct)} / ${pct(p.b_flip_pct)}${p.b_flip_on_a_axis!=null?`, ${esc(short(p.b))} flip on ${esc(short(p.a))} axis <b class="mono">${fmt(p.b_flip_on_a_axis)}</b>`:''}</span>`;
+  h+=`<div class="xrow">${pr(P.qqq_vs_nq)}</div><div class="xrow">${pr(P.spy_vs_spx)}</div>`;
+  h+=`<div class="xrow"><span class="chip ${C.disagreement?'neg':''}" style="${C.disagreement?'border-color:var(--neg);color:var(--neg)':''}">${C.disagreement?'DISAGREEMENT':'complexes agree'}</span><span>SPX cx <b class="mono ${C.spx.within_1pct_musd>=0?'pos':'neg'}">${musd(C.spx.within_1pct_musd)}</b> vs NDX cx <b class="mono ${C.ndx.within_1pct_musd>=0?'pos':'neg'}">${musd(C.ndx.within_1pct_musd)}</b> within 1% · ratio <b class="mono">${C.dollar_ratio??'—'}</b> · flips ${pct(C.spx.flip_pct_dollar_weighted)} / ${pct(C.ndx.flip_pct_dollar_weighted)}</span></div>`;
+  const kq=qqqFactor(),mis=qqqRefMismatch();
+  h+=`<div class="xrow dim" style="font-size:10.5px">k = ${kq!=null?kq.toFixed(8):M.qqq_per_nq_point} QQQ per NQ pt (${mis?`rebuilt: ${fmt(XREF.qqq.F_ref)} / ${fmt(LIVE.chain.F_ref)} ${esc(LIVE.chain.ref_symbol)} — <b class="neg">compare struck on ${esc(M.nq_ref_symbol)} ${fmt(M.nq_ref)}, not the tape's contract</b>`:`${fmt(M.qqq_front)} / ${fmt(M.nq_ref)} ${esc(M.nq_ref_symbol)}`})${M.nq_basis?` · roll week: front book hedges ${esc(M.nq_front_symbol)} ${fmt(M.nq_front_settle)}, basis ${M.nq_basis>0?'+':''}${fmt(M.nq_basis)}`:''} · SPY/SPX ${M.spy_per_spx_point} · quotes ${esc(X.date)}${X.date_mismatch?' <b class="neg">NQ chain is another settle</b>':''} · <b>${esc(X.hypothesis_status.split(' -- ')[0])}</b> — numbers, not a signal</div>`;
+  return h;
+}
+function renderEqLadders(){
+  const host=$('#eqLadders');if(!host)return;const X=XREF.data;
+  if(!X){host.innerHTML='<span class="dim">Appears after opra_compare.py runs for this settle.</span>';$('#eqMeta').textContent='';return}
+  const want=['SPX complex (SPX+SPXW)','SPY','QQQ'].filter(n=>X.books[n]);
+  $('#eqMeta').textContent='each in its own points · $M dealer γ per 1% · ±3% of spot · never on the NQ axis';
+  host.innerHTML=`<div class="eq">${want.map(n=>{const b=X.books[n],S=b.spot;
+    const rows=Object.entries(b.gamma_axis||{}).map(([k,v])=>[+k,+v]).filter(([k])=>Math.abs(k-S)/S<=.03).sort((a,c)=>Math.abs(c[1])-Math.abs(a[1])).slice(0,14).sort((a,c)=>c[0]-a[0]);
+    const mx=Math.max(...rows.map(r=>Math.abs(r[1])))||1;
+    return`<div><div class="lbl">${esc(n.replace(' (SPX+SPXW)',''))} <span class="mono" style="color:var(--ink3)">${fmt(S)}</span> <span class="mono ${b.within_1pct_musd>=0?'pos':'neg'}">${b.within_1pct_musd>=0?'+':'−'}${(Math.abs(b.within_1pct_musd)/1000).toFixed(1)}B</span></div>
+      <div class="eqg">${rows.map(([k,v])=>`<div class="mono" style="text-align:right;color:var(--ink2)">${b.roots==='SPX+SPXW'?fmt0(k):k.toFixed(k%1?1:0)}</div><div class="tb"><i style="${v>=0?'left:50%':'right:50%'};width:${Math.abs(v)/mx*50}%;background:var(${v>=0?'--pos':'--neg'})"></i></div><div class="mono" style="text-align:right;color:var(${v>=0?'--pos':'--neg'})">${v>=0?'+':'−'}${Math.abs(v)>=1000?(Math.abs(v)/1000).toFixed(1)+'B':Math.abs(v).toFixed(0)}</div>`).join('')}</div>
+      ${b.panels.FULL.flip!=null?`<div class="dim" style="font-size:10.5px;margin-top:4px">flip <span class="mono warn">${b.roots==='SPX+SPXW'?fmt0(b.panels.FULL.flip):b.panels.FULL.flip.toFixed(1)}</span> (${b.panels.FULL.flip_pct>0?'+':''}${b.panels.FULL.flip_pct.toFixed(2)}%)${b.fallback_books&&b.fallback_books.length?` · <span class="neg">${b.fallback_books.length} book(s) at fallback vol</span>`:''}</div>`:''}</div>`}).join('')}</div>`;
+}
+
+/* ---------- gamma ladders (2026-09-06): the four books under the chart on ONE axis -- % from each book's own
+   live spot, in bands -- so NQ's last, QQQ's, SPX's and SPY's all sit on the same row (the "spot" row), and a
+   wall half a percent above spot in one book lines up with that row in the others. Every cell is $M dealer
+   gamma per 1% (contracts of delta per 1% x spot x multiplier), strikes in a band summed, the dominant strike
+   labelled, bars scaled within a column. Spots: NQ = the tape; QQQ = NQ x k (same basket, the ghost's
+   convention); SPX = ES x the day's basis factor, F_ref / F(SPX book on ES's own expiry), both off the same
+   chain instant; SPY = SPX x the day's SPY/SPX ratio. No ES print (a replay, CC_ES=off, no mapping yet) ->
+   SPX and SPY hold their settle spot and re-price by the clock only, and the column header says so. SPX is
+   never priced off NQ's move: that would be a beta, not a factor. ---------- */
+const XL={cache:{},key:'',band:+store.get('xlband',.25),on:store.get('xlon',true),h:store.get('xlh',null),mode:store.get('xlmode','strikes'),
+  range:+store.get('xlrange',3),rows:store.get('xlrows','grid'),size:store.get('xlsize','m'),exps:store.get('xlexps',[])};   // 2026-09-07: range / rows / size / expiry chips
+const XL_HEAD=38;
+function xlSel(){return XL.exps&&XL.exps.length?new Set(XL.exps):null}                       // expiry chips -> Set, or null = the book buttons
+function xlRowPx(){return XL.size==='s'?11:XL.size==='l'?20:16}                              // 'fit' is resolved in renderXL from the row count
+const musdFmt=v=>{if(v==null||isNaN(v))return'—';const a=Math.abs(v),sg=v<0?'−':v>0?'+':'';return a>=1000?sg+(a/1000).toFixed(1)+'B':sg+a.toFixed(0)+'M'};
+function thirdFriday(y,m){const d=new Date(Date.UTC(y,m-1,1)).getUTCDay();return 1+((5-d+7)%7)+14}
+function esFactor(){                       // {k: SPX points per ES point, expiry} from the SPX chain itself, or null
+  const C=XREF.spx,E=TK&&TK.es;if(!C||!E||!E.last)return null;
+  let b=null;const m=/^ES([FGHJKMNQUVXZ])(\d)$/.exec(E.contract||'');
+  if(m){const mo='FGHJKMNQUVXZ'.indexOf(m[1])+1;let y=2020+ +m[2];const cy=new Date(nowMs()).getUTCFullYear();if(y<cy-1)y+=10;
+    const key=`${y}-${String(mo).padStart(2,'0')}-${String(thirdFriday(y,mo)).padStart(2,'0')}`;
+    b=C.books.find(x=>x.root==='SPX'&&x.expiry.startsWith(key))||C.books.find(x=>x.expiry.startsWith(key));
+    if(!b){const t=Date.parse(key+'T13:30Z');b=C.books.find(x=>x.root==='SPX'&&Math.abs(Date.parse(x.expiry)-t)<4*864e5)||null}}   // holiday Thursday
+  else{const d0=new Date(nowMs()).toISOString().slice(0,10);b=C.books.find(x=>x.root==='SPX'&&x.expiry.slice(0,10)>=d0)||C.books.find(x=>x.root==='SPX')||null}   // ES.c.0 / SIM: the nearest-expiring contract = the front quarterly SPX book
+  if(!b||!b.F)return null;return{k:C.F_ref/b.F,expiry:b.expiry.slice(0,10)};
+}
+function eqBooks(C,bk,sel){return C.books.filter(bookPick(bk,sel))}
+function eqGamma(C,bk,spot,now,sel){const g={};for(const b of eqBooks(C,bk,sel))for(const [k,v] of Object.entries(modelGamma(C,b,spot-C.F_ref,now)))g[k]=(g[k]||0)+v;return g}
+function eqTotal(C,bk,shift,now,sel){return Object.values(eqGamma(C,bk,C.F_ref+shift,now,sel)).reduce((a,b)=>a+b,0)}
+function eqFlip(C,bk,spot,now,sel){           // zero crossing of total gamma nearest spot: +/-3% in 0.2% steps, linear refine
+  if(!eqBooks(C,bk,sel).length)return null;const xs=[];let prev=null;const step=spot*.002;
+  for(let i=-15;i<=15;i++){const s=spot-C.F_ref+i*step,t=eqTotal(C,bk,s,now,sel);if(prev&&((prev[1]<0&&t>=0)||(prev[1]>=0&&t<0)))xs.push(C.F_ref+prev[0]+(0-prev[1])*(s-prev[0])/(t-prev[1]));prev=[s,t]}
+  if(!xs.length)return null;return xs.reduce((a,b)=>Math.abs(b-spot)<Math.abs(a-spot)?b:a);
+}
+function xlColumns(bk){                    // [{name, spot, g:{K: contracts per 1%}, mult, flip, src, clock}] or {name, missing}
+  const now=nowMs(),minute=Math.floor(now/60000),nq=lastPrice()??R.reference.price,M=XREF.data&&XREF.data.mapping,cols=[];
+  if(Object.keys(XL.cache).length>240)XL.cache={};
+  const mem=(key,f)=>XL.cache[key]||(XL.cache[key]=f());
+  const sel=xlSel(),sig=sel?[...sel].join(','):'';
+  const eq=(C,bk,spot)=>mem(`${C.ref_symbol}|${bk}|${sig}|${spot.toFixed(2)}|${minute}`,()=>({g:eqGamma(C,bk,spot,now,sel),flip:eqFlip(C,bk,spot,now,sel)}));
+  const L=liveState(bk,sel);
+  if(L&&!liveBooks(bk,sel).length)cols.push({name:'NQ',missing:true,why:sel?'none of the selected expiries is in chain_live':`no ${bk==='0dte'?'0DTE':bk} book in chain_live (report ${LIVE.chain.report_date||'?'}${bk==='0dte'?', a holiday or a Sunday build':''})`});
+  else if(L)cols.push({name:'NQ',spot:L.last,g:L.g,mult:20,grid:XL.rows==='all'?0:NQ_GRID,flip:L.flip,src:'tape'+(TK&&TK.contract?' · '+TK.contract:'')+' · chain_live'});
+  else{const g={};(R.ladder[bk]||[]).filter(r=>r[2]!=='flip').forEach(r=>g[r[0]]=r[1]);cols.push({name:'NQ',spot:nq,g,mult:20,grid:NQ_GRID,flip:R.flips[bk],src:'sheet at settle · no chain_live yet',clock:true})}
+  const k=qqqFactor();
+  if(XREF.qqq&&k){const spot=nq*k,st=eq(XREF.qqq,bk,spot);cols.push({name:'QQQ',spot,g:st.g,mult:100,flip:st.flip,src:`NQ × k ${k.toFixed(5)} (${qqqFactorSrc()})`})}
+  else cols.push({name:'QQQ',missing:true});
+  let spxLive=false,spx=null;
+  if(XREF.spx){const ef=esFactor();spxLive=!!ef;spx=spxLive?TK.es.last*ef.k:XREF.spx.F_ref;const st=eq(XREF.spx,bk,spx);
+    cols.push({name:'SPX cx',spot:spx,g:st.g,mult:100,flip:st.flip,clock:!spxLive,src:spxLive?`ES ${esc(TK.es.contract)} ${fmt(TK.es.last)} × ${ef.k.toFixed(4)} (${ef.expiry})${TK.es.src==='1s'?' · 1-s replay':TK.es.src==='1m'?' · 1-min replay':''}`:(TK&&TK.mode==='replay'?'replay without es-&lt;day&gt;.npz · settle spot, clock only':'no ES print · settle spot, clock only')})}
+  else cols.push({name:'SPX cx',missing:true});
+  const r=M&&M.spy_per_spx_point;
+  if(XREF.spy){const live=spxLive&&!!r;const spot=live?spx*r:XREF.spy.F_ref,st=eq(XREF.spy,bk,spot);
+    cols.push({name:'SPY',spot,g:st.g,mult:100,flip:st.flip,clock:!live,src:live?`SPX × ${r.toFixed(5)}`:(r?'no ES print · settle spot, clock only':'no SPY/SPX ratio · settle spot')})}
+  else cols.push({name:'SPY',missing:true});
+  return cols;
+}
+function xlHead(cols,per,first){
+  return `<div class="h">${first}</div>`+cols.map((c,j)=>c.missing?`<div class="h" title="${esc(c.why||'')}"><span class="nm">${esc(c.name)}</span><br><span class="src">${esc(c.why||'no chain for this settle')}</span></div>`
+    :`<div class="h" title="${esc(c.src)}"><span class="nm">${esc(c.name)}</span> <b class="mono">${c.spot.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}</b> <span class="src">${c.clock?'reference':c.name==='NQ'?'futures':'est. spot'}</span><br>1% <b class="mono ${per[j].net1>=0?'pos':'neg'}">${musdFmt(per[j].net1)}</b> · <b class="mono neg">${musdFmt(per[j].neg1)}</b><br><span class="src">flip <b class="mono warn">${per[j].fp==null?'—':(per[j].fp>0?'+':'')+per[j].fp.toFixed(2)+'%'}</b>${per[j].top?` · max <b class="mono brass">${kLab(c,per[j].top[0])}</b> <b class="mono ${per[j].top[2]>=0?'pos':'neg'}">${musdFmt(per[j].top[2])}</b>`:''} · ${c.clock?'<b class="neg">clock only</b> · ':''}${c.src}</span></div>`).join('');
+}
+const kLab=(c,K)=>c.spot>=1000?fmt0(K):K.toFixed(K%1?1:0);
+function renderXL(force){
+  const host=$('#xl'),wrap=$('#xlWrap');if(!host||!R)return;
+  wrap.hidden=!XL.on;const hb=$('#xlHide');if(hb)hb.textContent=XL.on?'hide':'show';
+  if(!XL.on||!wrap.offsetParent)return;
+  const bk=book,w=XL.band,mode=XL.mode,XL_RANGE=XL.range,rowPx=XL.size==='fit'?(mode==='bands'?16:6):xlRowPx(),rows=Math.max(3,Math.floor((wrap.clientHeight-XL_HEAD)/rowPx)),half=Math.max(1,Math.floor((rows-1)/2));
+  const sel=xlSel();
+  const cols=xlColumns(bk);
+  const key=JSON.stringify([mode,bk,w,half,XL_RANGE,XL.rows,XL.size,XL.exps,cols.map(c=>c.missing?0:[c.spot.toFixed(2),c.src]),Math.floor(nowMs()/60000)]);
+  if(!force&&key===XL.key)return;const modeChanged=!XL.key||XL.key.slice(0,12)!==key.slice(0,12);XL.key=key;
+  const pct=(K,S)=>(K/S-1)*100,reach=mode==='strikes'?XL_RANGE:Math.max(XL_RANGE,(half+.5)*w);
+  // every strike within reach as [K, pct, $M]; the within-1% net and its negative part for the header
+  const per=cols.map(c=>{if(c.missing)return null;const S=c.spot;let net1=0,neg1=0;const ks=[];
+    const agg={};for(const [K,v] of Object.entries(c.g)){const kb=c.grid?Math.round(+K/c.grid)*c.grid:+K;agg[kb]=(agg[kb]||0)+v}
+    for(const [K,v] of Object.entries(agg)){const p=pct(+K,S),d=v*S*c.mult/1e6;if(!d)continue;if(Math.abs(p)<=1){net1+=d;if(d<0)neg1+=d}if(Math.abs(p)<=reach)ks.push([+K,p,d])}
+    ks.sort((a,b)=>b[0]-a[0]);const fp=c.flip!=null?pct(c.flip,S):null;const top=ks.reduce((a,k)=>!a||Math.abs(k[2])>Math.abs(a[2])?k:a,null);return{ks,net1,neg1,fp,top,mx:Math.max(1e-9,...ks.map(k=>Math.abs(k[2])))}});
+  host.className='xl'+(mode==='strikes'?' strikes':'');
+  host.innerHTML=mode==='strikes'?xlStrikes(cols,per,XL_RANGE):xlBands(cols,per,w,half);
+  {let px=xlRowPx();if(XL.size==='fit'){const n=host.querySelectorAll('.b').length||1;px=Math.max(6,Math.min(20,Math.floor((wrap.clientHeight-XL_HEAD)/n)))}
+   host.style.setProperty('--xlr',px+'px');host.style.setProperty('--xlf',Math.max(6,Math.min(10.5,px-5))+'px')}
+  renderXLExps();
+  if(mode==='strikes'&&(modeChanged||force===2)){const r0=host.querySelector('.b.r0');if(r0)wrap.scrollTop=Math.max(0,r0.offsetTop-(wrap.clientHeight-XL_HEAD)/2)}
+  const live=cols.some(c=>!c.missing&&!c.clock),bandLab=w===.25?'¼':w===.5?'½':w+'';
+  $('#xlMeta').textContent=`${live?'live':'sheet'}${sel?' · expiries '+[...sel].map(d=>d.slice(5)).join(' ')+' only':''} · $M dealer γ per 1% · header: spot · net within 1% · its negative part · flip · largest absolute node (gold row)`+(mode==='strikes'?` · every strike within ±${XL_RANGE}% of each book's own spot, one row each, NQ on the sheet's ${NQ_GRID}-pt grid · spot row aligned across the four · red wash = a run of negative strikes · scroll for more`:` · rows are ${bandLab}% bands off each book's own spot · red left / green right = gross, figure = net · hover a cell for its strikes`)+(XREF.data?'':' · equity books appear after opra_compare.py runs for this settle');
+}
+function xlBands(cols,per,w,half){
+  const bandLab=w===.25?'¼':w===.5?'½':w+'';
+  let h=xlHead(cols,per,bandLab+'% rows');
+  const cells=per.map(P=>{if(!P)return null;const m={};for(const [K,p,d] of P.ks){const i=Math.round(p/w);if(Math.abs(i)>half)continue;const x=m[i]||(m[i]={pos:0,neg:0,n:0,top:null,topAbs:-1,list:[]});if(d>=0)x.pos+=d;else x.neg+=d;x.n++;x.list.push([K,d]);if(Math.abs(d)>x.topAbs){x.topAbs=Math.abs(d);x.top=K}}
+    return{m,mx:Math.max(1e-9,...Object.values(m).map(x=>Math.max(x.pos,-x.neg)))}});
+  for(let i=half;i>=-half;i--){
+    h+=`<div class="b${i===0?' r0':''}">${i===0?'spot':(i>0?'+':'−')+Math.abs(i*w).toFixed(2)+'%'}</div>`;
+    cols.forEach((c,j)=>{if(c.missing){h+='<div class="c"></div>';return}const P=per[j],C=cells[j],x=C.m[i],fl=P.fp!=null&&Math.round(P.fp/w)===i,fy=fl?((i+.5)*w-P.fp)/w*100:50;
+      let cls='c'+(i===0?' r0':'')+(fl?' fl':'');const st=`--fy:${Math.max(2,Math.min(98,fy)).toFixed(0)}%`;
+      if(!x){h+=`<div class="${cls}" style="${st}"></div>`;return}
+      if(P.top&&x.list.some(([K])=>K===P.top[0]))cls+=' top';const net=x.pos+x.neg,hv=Math.abs(net)>=C.mx*.5,tip=x.list.map(([K,d])=>`${kLab(c,K)} ${musdFmt(d)}`).join('  ·  ')+(fl?`  ·  flip ${(P.fp>0?'+':'')+P.fp.toFixed(2)}%`:'');
+      h+=`<div class="${cls}" style="${st}" title="${esc(tip)}"><span class="k mono${hv?' hv':''}${x.neg<0&&net>=0?' mixed':''}">${kLab(c,x.top)}${x.n>1?`<span style="color:var(--ink3)">+${x.n-1}</span>`:''}</span><span class="tb"><i style="right:50%;width:${(-x.neg/C.mx*50).toFixed(1)}%;background:var(--neg)"></i><i style="left:50%;width:${(x.pos/C.mx*50).toFixed(1)}%;background:var(--pos)"></i></span><span class="v mono ${net>=0?'pos':'neg'}">${musdFmt(net)}</span></div>`});
+  }
+  return h;
+}
+function xlStrikes(cols,per,XL_RANGE){          // every strike one row (height from the size setting), own list per book, the spot row aligned across the four
+  const lists=cols.map((c,j)=>{if(c.missing)return null;const P=per[j],above=P.ks.filter(k=>k[1]>0),below=P.ks.filter(k=>k[1]<=0);return{above,below}});
+  const maxA=Math.max(0,...lists.filter(Boolean).map(l=>l.above.length)),maxB=Math.max(0,...lists.filter(Boolean).map(l=>l.below.length));
+  let h=xlHead(cols,per,'±'+XL_RANGE+'%');
+  // per column: the row list [type, K, pct, $] top to bottom, padded so row maxA is the spot row everywhere
+  const rowsOf=lists.map(l=>{if(!l)return null;const r=[];for(let i=0;i<maxA-l.above.length;i++)r.push(null);l.above.forEach(k=>r.push(k));r.push('spot');l.below.forEach(k=>r.push(k));for(let i=r.length;i<maxA+1+maxB;i++)r.push(null);return r});
+  // negative runs (>=2 consecutive negative strikes of size) -> which row indexes are washed
+  const wash=rowsOf.map((r,j)=>{if(!r)return new Set();const P=per[j],set=new Set();let run=[];const flush=()=>{if(run.length>=2)run.forEach(i=>set.add(i));run=[]};
+    r.forEach((k,i)=>{if(Array.isArray(k)&&k[2]<0&&Math.abs(k[2])>=P.mx*.01)run.push(i);else if(!(Array.isArray(k)&&Math.abs(k[2])<P.mx*.01))flush()});flush();return set});
+  // flip: the row it falls in (between the strike above it and the one below), as a fraction of that row
+  const flipAt=rowsOf.map((r,j)=>{if(!r)return null;const P=per[j];if(P.fp==null)return null;const c=cols[j],F=c.flip;let i=r.findIndex(k=>Array.isArray(k)&&k[0]<=F);if(i<0)return null;
+    if(r[i][0]===F)return[i,50];const up=r[i-1];if(!Array.isArray(up))return[i,4];const f=(up[0]-F)/(up[0]-r[i][0]);return f<.5?[i-1,50+f*100]:[i,(f-.5)*100]});
+  const N=maxA+1+maxB;
+  for(let i=0;i<N;i++){
+    const spot=i===maxA;
+    h+=`<div class="b${spot?' r0':''}">${spot?'spot':''}</div>`;
+    cols.forEach((c,j)=>{if(c.missing){h+='<div class="c"></div>';return}const P=per[j],k=rowsOf[j][i],fl=flipAt[j]&&flipAt[j][0]===i;
+      let cls='c'+(spot?' r0':'')+(fl?' fl':'')+(wash[j].has(i)?' wash2':''),st=fl?`--fy:${Math.max(2,Math.min(98,flipAt[j][1])).toFixed(0)}%`:'';
+      if(k==='spot'){h+=`<div class="${cls}" style="${st}" title="live spot · ${esc(c.src)}"><span class="k mono hv">${c.spot.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}</span><span class="tb"></span><span class="v dim">spot</span></div>`;return}
+      if(!k){h+=`<div class="${cls}" style="${st}"></div>`;return}
+      const [K,pc,d]=k,hv=Math.abs(d)>=P.mx*.5;if(P.top&&P.top[0]===K)cls+=' top';
+      h+=`<div class="${cls}" style="${st}" title="${(pc>0?'+':'')+pc.toFixed(2)}% from spot${c.grid?` · ${c.grid}-pt bucket`:''}${c.name==='NQ'?` · ${sgn(d*1e6/(c.spot*c.mult))} futures per 1%`:''}${fl?` · flip ${(P.fp>0?'+':'')+P.fp.toFixed(2)}%`:''}"><span class="k mono${hv?' hv':''}">${kLab(c,K)}</span><span class="tb"><i style="${d>=0?'left:50%':'right:50%'};width:${(Math.abs(d)/P.mx*50).toFixed(1)}%;background:var(${d>=0?'--pos':'--neg'})"></i></span><span class="v mono ${d>=0?'pos':'neg'}">${musdFmt(d)}</span></div>`});
+  }
+  return h;
+}
+$('#xlHide').onclick=()=>{XL.on=!XL.on;store.set('xlon',XL.on);renderXL(true)};
+// ---- expiry chips (2026-09-07): one chip per expiry DATE across the four books. A selection replaces the 0DTE/near/full
+// buttons for this panel only -- every book with an expiry on a selected date is summed, the others contribute nothing.
+let XL_EXPKEY='';
+function xlExpiries(){
+  const out={};const add=(C,tag)=>{if(!C||!C.books)return;for(const b of C.books){const d=b.expiry.slice(0,10);(out[d]=out[d]||new Set()).add(tag)}};
+  add(LIVE.chain,'NQ');add(XREF.qqq,'QQQ');add(XREF.spy,'SPY');add(XREF.spx,'SPX');
+  return Object.keys(out).sort().map(d=>({d,who:[...out[d]]}));
+}
+function renderXLExps(){
+  const el=$('#xlExps');if(!el)return;const ex=xlExpiries();const k=ex.map(x=>x.d+x.who.join('')).join('|')+'|'+XL.exps.join(',');
+  el.hidden=!XL.on||!ex.length;if(k===XL_EXPKEY||el.hidden)return;XL_EXPKEY=k;
+  const sel=new Set(XL.exps),today=new Date(nowMs()).toISOString().slice(0,10),lab=d=>{const t=new Date(d+'T12:00:00Z');return t.toLocaleDateString('en-US',{month:'short',day:'numeric'})};
+  const isQ=d=>{const t=new Date(d+'T12:00:00Z');return [2,5,8,11].includes(t.getUTCMonth())&&t.getUTCDay()===5&&t.getUTCDate()>=15&&t.getUTCDate()<=21};
+  el.innerHTML=`<span class="lbl">Expiries</span>`+ex.map(x=>`<button data-exp="${x.d}" class="${sel.has(x.d)?'on':''}${isQ(x.d)?' q':''}" title="${x.d} · ${x.who.join(' ')}${isQ(x.d)?' · quarterly':''}">${lab(x.d)}<span style="opacity:.6">·${x.who.length}</span></button>`).join('')
+    +`<span style="flex:1"></span><button class="act" data-expact="today">today</button><button class="act" data-expact="week">this week</button><button class="act" data-expact="clear">clear</button>`;
+  el.querySelectorAll('[data-exp]').forEach(b=>b.onclick=()=>{const d=b.dataset.exp;const i=XL.exps.indexOf(d);if(i<0)XL.exps=[...XL.exps,d].sort();else XL.exps=XL.exps.filter(x=>x!==d);store.set('xlexps',XL.exps);LIVE.cache={};XL.cache={};renderXL(true)});
+  el.querySelectorAll('[data-expact]').forEach(b=>b.onclick=()=>{const a=b.dataset.expact;const ds=ex.map(x=>x.d);
+    if(a==='clear')XL.exps=[];else if(a==='today')XL.exps=ds.filter(d=>d>=today).slice(0,1);else{const t=new Date(today+'T12:00:00Z'),dow=t.getUTCDay(),fri=new Date(t);fri.setUTCDate(t.getUTCDate()+(5-dow));const f=fri.toISOString().slice(0,10);XL.exps=ds.filter(d=>d>=today&&d<=f)}
+    store.set('xlexps',XL.exps);LIVE.cache={};XL.cache={};renderXL(true)});
+  $$('#xlBook button').forEach(x=>x.classList.toggle('dimmed',XL.exps.length>0));
+}
+$$('#xlRange button').forEach(b=>{b.classList.toggle('on',+b.dataset.range===XL.range);b.onclick=()=>{XL.range=+b.dataset.range;store.set('xlrange',XL.range);$$('#xlRange button').forEach(x=>x.classList.toggle('on',x===b));renderXL(2)}});
+$$('#xlRows button').forEach(b=>{b.classList.toggle('on',b.dataset.rows===XL.rows);b.onclick=()=>{XL.rows=b.dataset.rows;store.set('xlrows',XL.rows);XL.cache={};$$('#xlRows button').forEach(x=>x.classList.toggle('on',x===b));renderXL(2)}});
+$$('#xlSize button').forEach(b=>{b.classList.toggle('on',b.dataset.size===XL.size);b.onclick=()=>{XL.size=b.dataset.size;store.set('xlsize',XL.size);$$('#xlSize button').forEach(x=>x.classList.toggle('on',x===b));renderXL(2)}});
+$$('#xlMode button').forEach(b=>{b.classList.toggle('on',b.dataset.mode===XL.mode);b.onclick=()=>{XL.mode=b.dataset.mode;store.set('xlmode',XL.mode);$$('#xlMode button').forEach(x=>x.classList.toggle('on',x===b));$('#xlBand').hidden=XL.mode!=='bands';renderXL(2)}});$('#xlBand').hidden=XL.mode!=='bands';
+$$('#xlBand button').forEach(b=>{b.classList.toggle('on',+b.dataset.band===XL.band);b.onclick=()=>{XL.band=+b.dataset.band;store.set('xlband',XL.band);$$('#xlBand button').forEach(x=>x.classList.toggle('on',x===b));renderXL(true)}});
+{const wrap=$('#xlWrap');if(XL.h)wrap.style.height=XL.h+'px';let t=null;
+  new ResizeObserver(()=>{if(!wrap.offsetParent||wrap.hidden)return;clearTimeout(t);t=setTimeout(()=>{const hh=Math.round(wrap.getBoundingClientRect().height);if(hh&&hh!==XL.h){XL.h=hh;store.set('xlh',hh)}renderXL(true)},120)}).observe(wrap)}
+setInterval(()=>renderXL(),2000);
+
+/* ---------- strike exposure: net dealer gamma per strike for one book, last price marked; live over the sheet ---------- */
+function drawExpo(){[$('#expo'),$('#expo2')].forEach(c=>{if(c&&c.offsetParent)drawExpoOn2(c)});expoMeta()}
+function expoMeta(){
+  const L=liveState(book),bk=book==='0dte'?'0DTE':book,sheetNet=R.net[book],sheetFlip=R.flips[book];
+  $$('.expoMeta').forEach(m=>m.textContent=L?`live · re-priced at ${fmt0(L.last)}`:`sheet at settle`);
+  const hrs=L&&liveBooks(book)[0]?Math.max(0,(Date.parse(liveBooks(book)[0].expiry)-L.now)/36e5):null;
+  $$('.expoFoot').forEach(f=>f.innerHTML=L?`<span><i></i>live at <b class="mono">${fmt0(L.last)}</b> · net Γ <b class="mono ${L.net>=0?'pos':'neg'}">${sgn(L.net)}</b></span><span><i class="ghost"></i>sheet · <b class="mono">${sgn(sheetNet)}</b> at settle ${fmt(LIVE.chain.F_ref)}</span><span class="dim">sheet OI & IV, gamma re-solved at the last print and the clock</span>`
+    +`<span>flip <b class="mono warn">${L.flip!=null?fmt0(L.flip):'—'}</b> live · <span class="mono">${sheetFlip!=null?fmt0(sheetFlip):'—'}</span> sheet</span>`
+    +(hrs!=null?`<span>front expiry in <b class="mono">${hrs>48?(hrs/24).toFixed(1)+'d':hrs.toFixed(1)+'h'}</b></span>`:'')
+    :`<span>Live re-pricing appears after the next pipeline run writes chain_live.json.</span>`);
+  const Q=qqqOn?qqqState(book):null;
+  if(Q)$$('.expoFoot').forEach(f=>f.insertAdjacentHTML('beforeend',`<span><i class="qqq"></i>QQQ · net <b class="mono ${Q.net>=0?'pos':'neg'}">${sgn(Q.net)}</b> NQ-equiv · k ${Q.k.toFixed(5)} · ${Q.books} expiries</span>`));
+}
+function drawExpoOn2(c){
+  if(!R)return;const g=c.getContext('2d'),dpr=devicePixelRatio||1;let W=c.clientWidth,H=c.clientHeight;if(!W||!H)return;
+  const MONO='"IBM Plex Mono",ui-monospace,Menlo,monospace';
+  const sheet=(R.ladder[book]||[]).filter(r=>r[2]!=='flip');const L=liveState(book);const Q=qqqOn?qqqState(book):null;
+  const MAXR=c.id==='expo2'?34:22;
+  let rows=sheet.map(r=>[r[0],r[1],r[2],L?(L.g[r[0]]||0):null]);
+  if(L&&sheet.length){const lo=Math.min(...sheet.map(r=>r[0])),hi=Math.max(...sheet.map(r=>r[0]));const have=new Set(sheet.map(r=>r[0]));
+    const extra=Object.entries(L.g).map(([k,v])=>[+k,v]).filter(([k])=>!have.has(k)&&k>=lo&&k<=hi).sort((a,b)=>Math.abs(b[1])-Math.abs(a[1])).slice(0,Math.max(0,MAXR-rows.length));
+    extra.forEach(([k,v])=>rows.push([k,0,'',v]))}
+  if(rows.length>MAXR)rows=rows.sort((a,b)=>Math.max(Math.abs(b[1]),Math.abs(b[3]||0))-Math.max(Math.abs(a[1]),Math.abs(a[3]||0))).slice(0,MAXR);
+  if(Q)rows.forEach(r=>r[4]=Q.g[r[0]]||0);
+  rows.sort((a,b)=>b[0]-a[0]);
+  if(c.parentElement.classList.contains('auto')){const want=Math.max(220,rows.length*16+40);c.parentElement.style.setProperty('--h',want+'px');W=c.clientWidth;H=c.clientHeight}
+  c.width=W*dpr;c.height=H*dpr;g.setTransform(dpr,0,0,dpr,0,0);g.clearRect(0,0,W,H);
+  if(!rows.length){g.fillStyle=css('--ink3');g.font='12px '+MONO;g.textAlign='center';g.fillText('no '+book+' book on this sheet',W/2,H/2);return}
+  const padL=58,padR=56,padT=14,padB=18,plotW=W-padL-padR,plotH=H-padT-padB,rh=plotH/rows.length,mx=Math.max(...rows.map(r=>Math.max(Math.abs(r[1]),Math.abs(r[3]||0),Math.abs(r[4]||0))))||1,x0=padL+plotW/2;
+  const last=lastPrice()??R.reference.price;
+  g.strokeStyle=css('--rule2');g.lineWidth=1;g.beginPath();g.moveTo(x0,padT);g.lineTo(x0,H-padB);g.stroke();
+  const flip=R.flips[book];
+  rows.forEach((r,i)=>{const yy=padT+i*rh,bh=Math.max(2,rh*.68),half=plotW/2-6;const v=L?r[3]:r[1];const w=Math.abs(v)/mx*half;
+    if(L){const ws=Math.abs(r[1])/mx*half;if(ws>0){g.save();g.strokeStyle=css('--ink3');g.globalAlpha=.55;g.lineWidth=1;g.strokeRect((r[1]>=0?x0:x0-ws)+.5,yy+(rh-bh)/2+.5,Math.max(1,ws-1),bh-1);g.restore()}}   // the sheet, as a ghost
+    if(Q&&r[4]){const wq=Math.abs(r[4])/mx*half;if(wq>0){g.save();g.strokeStyle=css('--vio');g.setLineDash([3,2]);g.globalAlpha=.9;g.lineWidth=1;g.strokeRect((r[4]>=0?x0:x0-wq)+.5,yy+(rh-bh)/2+.5,Math.max(1,wq-1),bh-1);g.restore()}}   // QQQ on the NQ axis, NQ-equivalent
+    g.fillStyle=v>=0?css('--pos'):css('--neg');g.globalAlpha=L?.85:.9;if(w>0)g.fillRect(v>=0?x0:x0-w,yy+(rh-bh)/2,w,bh);g.globalAlpha=1;
+    const heavy=Math.abs(v)>=mx*.5;g.fillStyle=css(heavy?'--ink':'--ink3');g.font=(heavy?'600 ':'')+'10px '+MONO;g.textAlign='right';g.fillText(fmt0(r[0]),padL-6,yy+rh/2+3.5);
+    if(Math.abs(v)>=.5||!L){const wl=L?Math.max(w,Math.abs(r[1])/mx*half*(Math.sign(r[1])===Math.sign(v)||!r[1]?1:0)):w;g.fillStyle=v>=0?css('--pos'):css('--neg');g.font='10px '+MONO;g.textAlign=v>=0?'left':'right';g.fillText(sgn(v),v>=0?x0+wl+4:x0-wl-4,yy+rh/2+3.5)}});
+  // last price marker: between the two strikes it sits in
+  const yOf=p=>{let i=rows.findIndex(r=>r[0]<=p);if(i<0)return H-padB;if(i===0)return padT;const a=rows[i-1][0],b=rows[i][0];return padT+(i-1)*rh+rh/2+(a-p)/(a-b)*rh};
+  const yl=yOf(last);g.save();g.strokeStyle=css('--ink');g.setLineDash([2,3]);g.beginPath();g.moveTo(padL-2,yl);g.lineTo(W-padR+2,yl);g.stroke();g.restore();
+  g.fillStyle=css('--ink');g.fillRect(W-padR+4,yl-8,padR-6,16);g.fillStyle=css('--panel');g.font='500 10px '+MONO;g.textAlign='left';g.fillText(fmt0(last),W-padR+8,yl+3.5);
+  const lf=L&&L.flip;const flips=[[flip,L?'sheet flip ':book+' flip ',L?.45:1,[2,4]],[lf,'live flip ',1,[6,4]]];
+  flips.forEach(([f,lab,al,dash])=>{if(f==null||f<rows.at(-1)[0]||f>rows[0][0])return;const yf=yOf(f);g.save();g.globalAlpha=al;g.strokeStyle=css('--warn');g.setLineDash(dash);g.beginPath();g.moveTo(padL-2,yf);g.lineTo(W-padR+2,yf);g.stroke();g.font='8.5px '+MONO;const txt=lab.replace(' flip ','').trim()+' flip '+fmt0(f),tw=g.measureText(txt).width+8;g.globalAlpha=1;g.fillStyle=css('--panel');g.fillRect(x0-tw/2,yf-12,tw,11);g.globalAlpha=al;g.fillStyle=css('--warn');g.textAlign='center';g.fillText(txt,x0,yf-3.5);g.restore()});
+  const offF=flips.filter(([f])=>f!=null&&(f<rows.at(-1)[0]||f>rows[0][0]));
+  if(offF.length){g.fillStyle=css('--warn');g.font='9.5px '+MONO;g.textAlign='right';offF.forEach(([f,lab],i)=>g.fillText((f>rows[0][0]?'▲ ':'▼ ')+lab.trim()+' '+fmt0(f)+' · '+sgn(f-last),W-padR-4,f>rows[0][0]?padT+10+11*i:H-padB-14-11*i))}
+  g.fillStyle=css('--ink3');g.font='9.5px '+MONO;g.textAlign='left';g.fillText(plotW>300?'−γ · dealers short':'−γ short',padL,H-5);g.textAlign='right';g.fillText(plotW>300?'+γ · dealers long':'+γ long',W-padR,H-5);
+}
+function spark(c,arr){if(!c)return;if(!arr||!arr.length){c.replaceWith(Object.assign(document.createElement('p'),{textContent:'No measured sessions yet — fills in with the first complete RTH day.',style:'margin:0;color:var(--ink3);font-size:12px'}));return}
+  const dpr=devicePixelRatio||1,W=c.clientWidth,H=c.clientHeight;c.width=W*dpr;c.height=H*dpr;const g=c.getContext('2d');g.setTransform(dpr,0,0,dpr,0,0);
+  const lo=Math.min(...arr,60)-3,hi=Math.max(...arr,76)+3,x=i=>arr.length>1?i/(arr.length-1)*(W-8)+4:W/2,y=v=>H-6-(v-lo)/(hi-lo)*(H-12);
+  g.strokeStyle=css('--rule2');g.setLineDash([2,3]);g.beginPath();g.moveTo(4,y(68));g.lineTo(W-4,y(68));g.stroke();g.setLineDash([]);
+  g.strokeStyle=css('--brass');g.lineWidth=1.5;g.beginPath();arr.forEach((v,i)=>i?g.lineTo(x(i),y(v)):g.moveTo(x(i),y(v)));g.stroke();
+  g.fillStyle=css('--ink3');g.font='10px "IBM Plex Mono",monospace';g.fillText('68% target',6,y(68)-4);g.fillStyle=css('--ink');g.fillText(arr.at(-1)+'%',W-34,y(arr.at(-1))-6)}
+addEventListener('resize',()=>{draw();drawExpo();spark($('#hist'),R&&R.history)});
+/* ---------- detach: chart and gamma ladder into their own windows ----------
+   Desktop shell only. In a browser window.pywebview is undefined, ccApi() returns
+   null and none of this appears -- the pop icon keeps its old "open in a tab"
+   behaviour. The chart window is teddychart's own server, so it is a second view
+   of one stream, not a second stream. The ladder window is this page with
+   ?solo=ladder: same build, tabs and pipeline controls hidden, boot() skips the
+   run so opening a window never kicks off a rebuild. */
+const DETACHED=new Set();
+function ccApi(){return (window.pywebview&&window.pywebview.api)||null}
+function ccHost(v){return v==='chart'?$('#chartWrap').parentElement:$('#v-ladder .col')}
+function ccSetDetached(v,on){
+  on?DETACHED.add(v):DETACHED.delete(v);
+  const host=ccHost(v);
+  const kids=v==='chart'?[$('#chartWrap')]:Array.from(host.children).filter(n=>!n.classList.contains('gone'));
+  kids.forEach(n=>{if(n)n.hidden=on});
+  let slot=document.getElementById('gone-'+v);
+  if(on&&!slot){
+    slot=document.createElement('div');slot.className='gone';slot.id='gone-'+v;
+    slot.innerHTML=`<div><b>${v==='chart'?'The chart':'The gamma ladder'}</b> is running in its own window.</div>`+
+                   `<button class="btn alt" data-dock="${v}">Dock it back</button>`;
+    host.appendChild(slot);
+  }else if(slot)slot.hidden=!on;
+  $$('[data-detach="'+v+'"]').forEach(b=>b.classList.toggle('on',on));
+}
+window.ccDetached=ccSetDetached;   /* teddy_app.py calls this when a window is closed */
+window.ccDropHint=function(what){   /* ...and this while one is being dragged back over us */
+  let el=document.getElementById('dropHint');
+  if(!what){if(el)el.remove();return}
+  if(!el){el=document.createElement('div');el.id='dropHint';document.body.appendChild(el)}
+  el.innerHTML=`<div class="box">Release to dock ${what}<small>it returns to where it was</small></div>`;
+};
+async function ccDetach(v){const a=ccApi();if(!a)return;ccSetDetached(v,true);try{await a.detach(v)}catch{ccSetDetached(v,false)}}
+async function ccDock(v){const a=ccApi();if(!a)return;ccSetDetached(v,false);try{await a.dock(v)}catch{}}
+document.addEventListener('click',e=>{
+  const d=e.target.closest('[data-dock]');if(d){ccDock(d.dataset.dock);return}
+  const t=e.target.closest('[data-detach]');if(t){e.preventDefault();ccDetach(t.dataset.detach)}
+});
+function ccInstallDetach(){
+  if(SOLO||!ccApi())return;
+  const ico='<svg viewBox="0 0 24 24"><path d="M14 4h6v6M20 4l-9 9M19 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1h5"/></svg>';
+  const pop=$('#chartPop');
+  if(pop){pop.removeAttribute('target');pop.removeAttribute('href');pop.dataset.detach='chart';
+          pop.style.cursor='pointer';pop.title='Pop the chart out into its own window'}
+  const lh=$('#v-ladder .ph');
+  if(lh&&!lh.querySelector('[data-detach="ladder"]')){
+    const b=document.createElement('button');b.className='dt';b.dataset.detach='ladder';
+    b.title='Pop the gamma ladder out into its own window';b.innerHTML=ico;b.style.marginLeft='10px';
+    lh.appendChild(b);
+  }
+}
+if(window.pywebview)ccInstallDetach(); else addEventListener('pywebviewready',ccInstallDetach);
+
+/* Adapter only: reuse the displayed ladder's model, no second pricing engine.
+ * The module is served by Flask's existing /static route. Snapshot comparisons
+ * use the full chain identity, not just its date (same-day rebuilds can differ).
+ */
+let explanationChain = null, explanationIdentity = '', explanationBaseKey = '', explanationBase = null;
+const explanationBars = window.LiveLadderExplain ? window.LiveLadderExplain.createMinuteBars() : null;
+function ladderExplanationSnapshot(){
+  if(!R || !LIVE.chain) return {error:'No usable saved options book. Rebuild the report to supply chain_live.json.'};
+  const C=LIVE.chain,now=nowMs(),sel=xlSel();
+  const common={now,lastMs:TAPE.lastMs,connected:TAPE.connected,feedState:TK&&TK.state,
+    mode:TK&&TK.mode,label:'NQ · '+(book==='0dte'?'0DTE':book==='near'?'Near':'Full')+(sel?' · selected expiries '+[...sel].join(', '):''),
+    asof:C.asof,settle:C.settle,vintage:C.oi_vintage||'unspecified',baseAt:Date.parse(C.asof)};
+  // An NQZ print against an NQU book would manufacture a basis-sized change.
+  if(common.mode==='real' && TK&&TK.contract && TK.contract!==C.ref_symbol)
+    return {...common,error:'Feed contract '+TK.contract+' differs from ladder reference '+C.ref_symbol+'. Match the reference before interpreting changes.'};
+  if(C!==explanationChain){explanationIdentity=JSON.stringify(C);explanationChain=C;}
+  const radius=Number(R.session.em),center=Number(C.spot);
+  const id=explanationIdentity+'|'+book+'|'+(sel?[...sel].sort().join(','):'all')+'|'+radius+'|'+(TAPE.dayOpen||'')+'|'+common.mode;
+  common.id=id;
+  const failure=window.LiveLadderExplain.reason(common);if(failure)return {...common,error:failure};
+  if(!Number.isFinite(center)||center<=0||!Number.isFinite(radius)||radius<=0||!Number.isFinite(common.baseAt))
+    return {...common,error:'Snapshot price, time, or full-session expected move is missing.'};
+  if(C.settle!==R.session.settle||C.report_date!==R.session.date||C.asof!==R.session.asof||Math.abs(center-R.reference.settle)>.01)
+    return {...common,error:'Saved chain and displayed report do not share the same snapshot. Reload after the build finishes.'};
+  if(!liveBooks(book,sel).length)return {...common,error:'No options books for this selection.'};
+  if(!liveBooks(book,sel).some(b=>Date.parse(b.expiry)>now))return {...common,error:'All selected expiries have expired. Rebuild or choose a live book.'};
+  if(explanationBaseKey!==id){
+    explanationBase={g:liveGamma(book,center,common.baseAt,sel),flip:liveFlip(book,center,common.baseAt,sel)};
+    explanationBaseKey=id;
+  }
+  const current=liveState(book,sel);
+  const levels=Object.entries(explanationBase.g).filter(([k,v])=>Math.abs(v)>=10&&Math.abs(+k-current.last)<=radius)
+    .sort((a,b)=>Math.abs(+a[0]-current.last)-Math.abs(+b[0]-current.last)).slice(0,4)
+    .map(([k])=>({price:+k,label:'snapshot strike'}));
+  if(Number.isFinite(explanationBase.flip)&&!levels.some(l=>Math.abs(l.price-explanationBase.flip)<1))
+    levels.push({price:explanationBase.flip,label:'snapshot flip'});
+  const f=chartFlow, flow=f&&f.contract===C.ref_symbol&&f.mode===(common.mode==='real'?'live':common.mode)&&!f.replaying&&Math.abs(now-f.end_ms)<10000&&f.last_trade_ms!=null&&now-f.last_trade_ms<30000?f:null;
+  return {...common,center,radius,base:explanationBase,current,levels,flow,
+    bars:explanationBars.consume(TAPE.ts,TAPE.px,(TAPE.dayOpen||'')+'|'+common.mode)};
+}
+if(window.LiveLadderExplain)window.LiveLadderExplain.mount(ladderExplanationSnapshot);
+boot();
+</script>
+</body>
+</html>

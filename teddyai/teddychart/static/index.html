@@ -1,0 +1,158 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>TeddyAI Chart</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+/* TeddyAI palette — the same tokens the report and the console use. */
+:root{--ground:#F2F3F1;--panel:#FBFBFA;--panel2:#E9EBE7;--ink:#14181A;--ink2:#4A5350;
+--ink3:#7C8783;--rule:#D2D6D0;--rule2:#BFC5BE;--brass:#9A6E1F;--brassx:#EFE2C6;
+--neg:#A8412C;--pos:#1F6E62;--posx:#CFE3DE;--warn:#8A6A12;--vio:#5B4B8A;
+--mono:"IBM Plex Mono","Cascadia Mono",Consolas,monospace;--ui:system-ui,-apple-system,"Segoe UI",sans-serif}
+@media(prefers-color-scheme:dark){:root:not([data-theme=light]){--ground:#101413;--panel:#171C1B;--panel2:#1F2624;
+--ink:#E9EDEA;--ink2:#A8B2AE;--ink3:#77837E;--rule:#2A322F;--rule2:#3A443F;--brass:#D6A64A;
+--brassx:#3A3018;--neg:#E07A5F;--pos:#5FBFAC;--posx:#123029;--warn:#D6B04A;--vio:#A395D6}}
+:root[data-theme=dark]{--ground:#101413;--panel:#171C1B;--panel2:#1F2624;
+--ink:#E9EDEA;--ink2:#A8B2AE;--ink3:#77837E;--rule:#2A322F;--rule2:#3A443F;--brass:#D6A64A;
+--brassx:#3A3018;--neg:#E07A5F;--pos:#5FBFAC;--posx:#123029;--warn:#D6B04A;--vio:#A395D6}
+
+*{box-sizing:border-box}
+html,body{height:100%;margin:0;background:var(--ground);color:var(--ink);font:12.5px/1.35 var(--ui);overflow:hidden}
+#app{display:grid;grid-template-rows:38px 1fr 22px;grid-template-columns:1fr auto;height:100%}
+#top{grid-column:1/3;display:flex;flex-wrap:nowrap;overflow:hidden;align-items:center;gap:5px;padding:0 8px;border-bottom:1px solid var(--rule2);background:var(--panel)}
+#status{grid-column:1/3;display:flex;align-items:center;gap:14px;padding:0 10px;border-top:1px solid var(--rule2);background:var(--panel);font:10.5px var(--mono);color:var(--ink3);white-space:nowrap;overflow:hidden}
+#status b{color:var(--ink2);font-weight:600}
+#status .live{color:var(--pos)} #status .warn{color:var(--warn)} #status .bad{color:var(--neg)}
+#chartwrap{position:relative;overflow:hidden;background:var(--panel)}
+#chart{position:absolute;inset:0;cursor:crosshair}
+#chart.dragging{cursor:grabbing}
+#chart canvas.layer{position:absolute;left:0;top:0;pointer-events:none}
+#side{display:flex;flex-direction:column;width:250px;border-left:1px solid var(--rule2);background:var(--panel);min-height:0}
+#side.hidden{display:none}
+.title{font:600 10px var(--ui);letter-spacing:.06em;text-transform:uppercase;color:var(--ink3);padding:6px 10px 4px;border-bottom:1px solid var(--rule)}
+#dom{flex:0 0 auto;font:11px var(--mono);overflow:hidden}
+#dom table{border-collapse:collapse;width:100%}
+#dom td{padding:1px 6px;height:18px;position:relative;white-space:nowrap}
+#dom td.b,#dom td.a{width:38%}
+#dom td.b{text-align:right} #dom td.a{text-align:left}
+#dom td.p{text-align:center;color:var(--ink2);width:24%}
+#dom tr.ask td.p{color:var(--neg)} #dom tr.bid td.p{color:var(--pos)}
+#dom .bar{position:absolute;top:2px;bottom:2px;opacity:.28;border-radius:2px}
+#dom tr.bid .bar{right:0;background:var(--pos)} #dom tr.ask .bar{left:0;background:var(--neg)}
+#dom td span{position:relative}
+#dom tr.spread td{border-top:1px solid var(--rule2);border-bottom:1px solid var(--rule2);color:var(--ink3);text-align:center;font-size:10px;height:16px}
+#dom tr.last td.p{outline:1px solid var(--brass);outline-offset:-1px}
+#dom .wall{font-weight:700;color:var(--brass)}
+#tape{flex:1 1 auto;min-height:0;overflow:auto;font:10.5px var(--mono)}
+#tape .row{display:grid;grid-template-columns:52px 1fr 44px;padding:1px 10px;border-bottom:1px solid var(--rule)}
+#tape .row.buy{color:var(--pos)} #tape .row.sell{color:var(--neg)}
+#tape .row .t{color:var(--ink3)} #tape .row .s{text-align:right;font-weight:600}
+#tape .row.huge{background:var(--brassx)}
+#legend{position:absolute;left:8px;top:6px;font:10.5px var(--mono);color:var(--ink2);pointer-events:none;background:color-mix(in srgb,var(--panel) 78%,transparent);padding:4px 7px;border-radius:4px;line-height:1.5;max-width:60%}
+#legend b{color:var(--ink)} #legend .pos{color:var(--pos)} #legend .neg{color:var(--neg)} #legend .brass{color:var(--brass)} #legend .dim{color:var(--ink3)}
+#banner{position:absolute;left:0;right:0;top:0;padding:4px 10px;background:var(--brassx);color:var(--brass);font:600 11px var(--ui);display:none;z-index:5}
+#banner.on{display:block}
+#replay{position:absolute;left:50%;top:40%;transform:translate(-50%,-50%);padding:10px 16px;background:var(--panel2);border:1px solid var(--rule2);border-radius:6px;font:12px var(--mono);color:var(--ink2);display:none}
+#replay.on{display:block}
+
+/* topbar */
+.pills[hidden]{display:none}
+.pills{display:flex;gap:2px;background:var(--panel2);border-radius:5px;padding:2px}
+.pill{border:0;background:transparent;color:var(--ink2);font:600 10.5px var(--mono);padding:4px 5px;border-radius:4px;cursor:pointer}
+.pill:hover{color:var(--ink)} .pill.on{background:var(--panel);color:var(--brass);box-shadow:0 1px 2px rgba(0,0,0,.15)}
+.sep{width:1px;height:20px;background:var(--rule2);margin:0 4px}
+.tog{border:1px solid var(--rule2);background:var(--panel);color:var(--ink3);font:600 10px var(--ui);padding:4px 6px;margin-right:2px;border-radius:4px;cursor:pointer;letter-spacing:.02em}
+.tog.on{color:var(--brass);border-color:var(--brass);background:var(--brassx)}
+.tog:hover{color:var(--ink)}
+#sym{font:600 13px var(--mono);color:var(--ink);margin-right:4px;white-space:nowrap}
+#quick{white-space:nowrap;display:flex;gap:2px}
+#sym small{color:var(--ink3);font-weight:400;font-size:10.5px;margin-left:6px}
+.spacer{flex:1}
+.ico{border:0;background:transparent;color:var(--ink2);font-size:15px;cursor:pointer;padding:2px 6px;border-radius:4px}
+.ico:hover{background:var(--panel2);color:var(--ink)}
+
+/* settings drawer */
+#drawer{position:absolute;right:0;top:38px;bottom:22px;width:330px;background:var(--panel);border-left:1px solid var(--rule2);box-shadow:-6px 0 18px rgba(0,0,0,.12);transform:translateX(105%);transition:transform .18s ease;overflow:auto;z-index:10;padding:8px 12px 20px}
+#drawer.open{transform:none}
+#drawer h3{font:600 10.5px var(--ui);letter-spacing:.06em;text-transform:uppercase;color:var(--ink3);margin:14px 0 4px;border-bottom:1px solid var(--rule);padding-bottom:3px}
+#drawer h3:first-child{margin-top:4px}
+.set{display:grid;grid-template-columns:1fr auto;align-items:center;gap:8px;padding:3px 0;font-size:12px;color:var(--ink2)}
+.set label{cursor:pointer}
+.set input[type=number],.set select{width:88px;font:11px var(--mono);background:var(--panel2);color:var(--ink);border:1px solid var(--rule2);border-radius:3px;padding:2px 5px}
+.set input[type=range]{width:110px}
+.sw{position:relative;width:32px;height:18px;border-radius:9px;background:var(--rule2);cursor:pointer;transition:background .12s}
+.sw::after{content:"";position:absolute;top:2px;left:2px;width:14px;height:14px;border-radius:7px;background:var(--panel);transition:left .12s}
+.sw.on{background:var(--pos)} .sw.on::after{left:16px}
+.hint{font-size:10.5px;color:var(--ink3);margin:2px 0 6px}
+.btnrow{display:flex;gap:6px;margin-top:10px}
+.btnrow button{flex:1;border:1px solid var(--rule2);background:var(--panel2);color:var(--ink2);font:600 11px var(--ui);padding:5px;border-radius:4px;cursor:pointer}
+kbd{font:10px var(--mono);border:1px solid var(--rule2);border-radius:3px;padding:0 4px;background:var(--panel2)}
+#help{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);background:var(--panel);border:1px solid var(--rule2);border-radius:6px;padding:14px 18px;font-size:12px;color:var(--ink2);display:none;z-index:20;box-shadow:0 8px 30px rgba(0,0,0,.2);line-height:1.8}
+#help.on{display:block}
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="top">
+    <span id="sym">NQ <small id="contract">—</small></span>
+    <div class="pills" id="tfs"></div>
+    <div class="sep"></div>
+    <div class="pills" id="styles">
+      <button class="pill" data-style="candles">Candles</button>
+      <button class="pill" data-style="footprint">Footprint</button>
+    </div>
+    <div class="sep"></div>
+    <div id="quick"></div>
+    <span class="spacer"></span>
+    <div class="pills" id="speed" hidden title="Replay speed">
+      <button class="pill" data-speed="0">⏸</button><button class="pill" data-speed="1">1×</button><button class="pill" data-speed="2">2×</button>
+      <button class="pill" data-speed="5">5×</button><button class="pill" data-speed="10">10×</button><button class="pill" data-speed="30">30×</button><button class="pill" data-speed="100">100×</button>
+    </div>
+    <button class="tog" id="follow" title="Follow the live bar on both axes (L). Panning or scaling by hand turns it off; dragging back to the live edge, End or double-click turns it on.">Follow</button>
+    <button class="ico" id="fit" title="Fit today (F)">⤢</button>
+    <button class="ico" id="end" title="Jump to live (End)">⇥</button>
+    <button class="ico" id="helpbtn" title="Keyboard (?)">?</button>
+    <button class="ico" id="gear" title="Settings">⚙</button>
+  </div>
+  <div id="chartwrap">
+    <div id="banner"></div>
+    <div id="chart"></div>
+    <div id="legend"></div>
+    <div id="replay">replaying the session…</div>
+  </div>
+  <div id="side">
+    <div class="title">Order flow · observations</div>
+    <div id="flow-summary" style="padding:8px;font-size:11px;line-height:1.6;white-space:pre-line">Waiting for server measurements…</div>
+    <div class="title" id="depth-title">Book liquidity</div>
+    <div id="depth-status" style="padding:8px;font-size:11px;line-height:1.5">Waiting for depth. Historical candles do not include depth.</div>
+    <div id="dom"><table><tbody id="domrows"></tbody></table></div>
+    <div class="title">Large lots</div>
+    <div id="tape"></div>
+  </div>
+  <div id="status">
+    <span id="st_state" class="warn">connecting</span>
+    <span>day <b id="st_day">—</b></span>
+    <span>prints <b id="st_prints">0</b></span>
+    <span><b id="st_rate">0</b>/s</span>
+    <span>lag <b id="st_lag">—</b></span>
+    <span><b id="st_fps">—</b> fps</span>
+    <span>cvd <b id="st_cvd">0</b></span>
+    <span class="spacer"></span>
+    <span id="st_levels"></span>
+    <span><b id="st_clock">—</b> PT</span>
+  </div>
+  <div id="drawer"></div>
+  <div id="help">
+    <b>Keyboard</b><br>
+    <kbd>←</kbd> <kbd>→</kbd> pan · <kbd>+</kbd> <kbd>−</kbd> zoom · <kbd>L</kbd> follow · <kbd>End</kbd> live · <kbd>Home</kbd> start · <kbd>F</kbd> fit today<br>
+    <kbd>1</kbd>…<kbd>9</kbd> timeframe · <kbd>C</kbd> candles · <kbd>P</kbd> footprint<br>
+    <kbd>H</kbd> heatmap · <kbd>T</kbd> TPO · <kbd>G</kbd> gamma · <kbd>B</kbd> bubbles · <kbd>V</kbd> CVD · <kbd>D</kbd> depth · <kbd>S</kbd> setups<br>
+    <kbd>,</kbd> settings · <kbd>Esc</kbd> close · double-click resets the axes<br>
+    replay: <kbd>Space</kbd> pause / resume · <kbd>[</kbd> <kbd>]</kbd> slower / faster<br>
+    wheel zooms time · shift-wheel or wheel over the price axis zooms price · drag the price axis to stretch it
+  </div>
+</div>
+<script type="module" src="main.js"></script>
+</body>
+</html>

@@ -1,0 +1,191 @@
+{
+ "generated": "2026-09-10T06:31:39+00:00",
+ "iv_basis": "sessions.2",
+ "note": "Frozen production numbers. Regenerate only when a change is INTENDED to move them.",
+ "sessions": {
+  "2024-09-10": {
+   "settle": "2024-09-10",
+   "report_date": "2024-09-11",
+   "spot": 18864.0,
+   "ref_symbol": "NQU4",
+   "iv_atm": 0.25235716033904126,
+   "em": 299.8811372738941,
+   "expiries": 27,
+   "no_0dte": false,
+   "vex_total": 798.124182,
+   "confluence_n": 4,
+   "front_root": "Q2CU4",
+   "front_expiry_hours": 6.5,
+   "panels": {
+    "0DTE": {
+     "hvl": [
+      18780.6
+     ],
+     "net_total": 122,
+     "expiries": 1,
+     "n_strikes": 86,
+     "gamma_sha256": "e76e97ebb114a90b1297ab479b6df83cd1a0a111964decee22e7e7ce7276243f"
+    },
+    "NEAR": {
+     "hvl": [
+      18904.3
+     ],
+     "net_total": -151,
+     "expiries": 11,
+     "n_strikes": 190,
+     "gamma_sha256": "8275876e8b5404125e18f93a574deeedbf20dc3f2ce46a883b3e3e7404d9433f"
+    },
+    "FULL": {
+     "hvl": [
+      18889.5
+     ],
+     "net_total": -123,
+     "expiries": 27,
+     "n_strikes": 254,
+     "gamma_sha256": "e5bb0bf9b71763f321bb1b8e1db6de1315e6ccb8678b761801bd24ba3e9eaa9b"
+    }
+   },
+   "by_expiry_n": 27,
+   "by_expiry_gamma_sum": -121,
+   "by_expiry_abs_gamma_sum": 1055
+  },
+  "2025-03-12": {
+   "settle": "2025-03-12",
+   "report_date": "2025-03-13",
+   "spot": 19618.5,
+   "ref_symbol": "NQH5",
+   "iv_atm": 0.28706498420992754,
+   "em": 354.7690700161561,
+   "expiries": 27,
+   "no_0dte": false,
+   "vex_total": 561.486128,
+   "confluence_n": 11,
+   "front_root": "Q2DH5",
+   "front_expiry_hours": 6.5,
+   "panels": {
+    "0DTE": {
+     "hvl": [
+      19695.6
+     ],
+     "net_total": -149,
+     "expiries": 1,
+     "n_strikes": 128,
+     "gamma_sha256": "016f0cf06424289842c39f75bb568985efcec4e19aba34aaaf104a3433800538"
+    },
+    "NEAR": {
+     "hvl": [
+      19937.3
+     ],
+     "net_total": -975,
+     "expiries": 11,
+     "n_strikes": 225,
+     "gamma_sha256": "9a479f31e75210a34a81a3ecc5c9ff46553a0782a0b79f616f6dda2660611d4e"
+    },
+    "FULL": {
+     "hvl": [
+      20021.8
+     ],
+     "net_total": -1438,
+     "expiries": 27,
+     "n_strikes": 264,
+     "gamma_sha256": "aba0a031f53220bffabfe15d71a618ca40baabc2e109cb03ade02981c8dd3c4a"
+    }
+   },
+   "by_expiry_n": 27,
+   "by_expiry_gamma_sum": -1437,
+   "by_expiry_abs_gamma_sum": 1733
+  },
+  "2026-09-01": {
+   "settle": "2026-09-01",
+   "report_date": "2026-09-02",
+   "spot": 29125.5,
+   "ref_symbol": "NQU6",
+   "iv_atm": 0.1427325976033881,
+   "em": 261.87635588374917,
+   "expiries": 27,
+   "no_0dte": false,
+   "vex_total": 821.652183,
+   "confluence_n": 27,
+   "front_root": "Q1CU6",
+   "front_expiry_hours": 6.5,
+   "panels": {
+    "0DTE": {
+     "hvl": [
+      29201.9
+     ],
+     "net_total": -469,
+     "expiries": 1,
+     "n_strikes": 111,
+     "gamma_sha256": "abe389ae250da7cb6caf2bd4930811a8fefb2f50be4160e8619c5ca6d657b6ff"
+    },
+    "NEAR": {
+     "hvl": [
+      29266.7
+     ],
+     "net_total": -1233,
+     "expiries": 10,
+     "n_strikes": 260,
+     "gamma_sha256": "27c8cf9bf28c96c30e965d999253f1d92de183e5beb605969bd1492ba909a035"
+    },
+    "FULL": {
+     "hvl": [
+      29257.6
+     ],
+     "net_total": -1362,
+     "expiries": 27,
+     "n_strikes": 355,
+     "gamma_sha256": "7f3c3c437aced79a58fb2749a477c0ea25dfe6040be88c0a27038d32c49e3623"
+    }
+   },
+   "by_expiry_n": 27,
+   "by_expiry_gamma_sum": -1361,
+   "by_expiry_abs_gamma_sum": 1531
+  },
+  "2026-09-08": {
+   "settle": "2026-09-08",
+   "report_date": "2026-09-09",
+   "spot": 29538.75,
+   "ref_symbol": "NQU6",
+   "iv_atm": 0.1306147314113905,
+   "em": 243.0434965261191,
+   "expiries": 28,
+   "no_0dte": false,
+   "vex_total": 950.545268,
+   "confluence_n": 28,
+   "front_root": "Q2CU6",
+   "front_expiry_hours": 6.5,
+   "panels": {
+    "0DTE": {
+     "hvl": [
+      29504.6
+     ],
+     "net_total": 156,
+     "expiries": 1,
+     "n_strikes": 110,
+     "gamma_sha256": "6a5490a540cd65706e4332033e60af54993be6ca56a81c85814a4f1460041264"
+    },
+    "NEAR": {
+     "hvl": [
+      29378.9
+     ],
+     "net_total": 1577,
+     "expiries": 11,
+     "n_strikes": 276,
+     "gamma_sha256": "3b3b9d45e1371e81a22a3d921fbf46e736c2cc36df6216658aac027694cb1d01"
+    },
+    "FULL": {
+     "hvl": [
+      29342.1
+     ],
+     "net_total": 2032,
+     "expiries": 28,
+     "n_strikes": 344,
+     "gamma_sha256": "e9fe62d66d5000af3be314eb42d6ad1fb61384a69d546d5023f41d6ae713d9e2"
+    }
+   },
+   "by_expiry_n": 28,
+   "by_expiry_gamma_sum": 2034,
+   "by_expiry_abs_gamma_sum": 2148
+  }
+ }
+}

@@ -1,0 +1,590 @@
+2026-09-14 UPDATE: Read INTRADAY-IMPLEMENTATION.md before commentary changes.
+Publication uses narrative.json + publication.py, not build.py source rewrites.
+Live MBP-1 is now the default and verified receiving with the existing subscription.
+It supplies best-bid/ask liquidity only; live MBP-10 is not included. No plan changed.
+Test commands and restart/remaining-work notes are in that implementation document.
+
+TEDDYAI — COMMAND REFERENCE
+============================================================================
+LIVE LADDER EXPLANATIONS (September 2026)
+    Reload /cc after updating the files. Terminal: below Gamma Ladders.
+    Ladder / detached Ladder: below Strike Exposure. No new service or model call.
+    Expand "Comparison basis and significance" for thresholds and snapshot age.
+    Expand "Price confirmations at saved levels" for confirmed closes/retests.
+    Full guide: LIVE-LADDER.md
+    Proposed additional work (not applied): INTRADAY-IMPROVEMENTS-PROPOSAL.md
+    Offline tests: node --test tests/test_live_ladder_explain.cjs
+    Optional UI test (Playwright): node tests/check_live_ladder_browser.cjs
+
+Running notes of every command you need, with what it does and when.
+Keep this file current: when a command changes or a new one appears, add it
+here in the same session. Last updated 2026-09-10.
+
+Everything runs from the project folder. Open PowerShell and start with:
+
+    cd teddyai
+
+All commands below assume you are in that folder.
+
+
+----------------------------------------------------------------------------
+0. THE EASY WAY — one double-click
+----------------------------------------------------------------------------
+    Start TeddyAI.bat        (in the project folder; pin it to the taskbar)
+        Starts everything in the right order and opens the command center:
+          1. teddy.py (dashboard, :5137) — waits until it answers
+          2. live_feed.py (keeps the bar cache current) — only with a Databento key
+          3. teddychart (the chart, :5138) — only with a key, or -Sim
+          4. autopull.py --job opra-live — the equity books for the last complete
+             session, open interest replayed off the OPRA live gateway. Its own
+             window, minutes not seconds, nothing waits on it. Only between
+             03:30 and 17:00 PT, which is when there is something to replay
+          5. your browser at http://127.0.0.1:5137/cc — the page runs the pipeline
+             and puts teddychart in its chart row; teddy.py's own print feed
+             (cc_ticks.py) drives the Last tile and the setup tracker
+        Each service gets its own console window titled "TeddyAI - <name>".
+        Safe to double-click again: anything already running is left alone.
+        Warns (yellow) if a key is missing instead of failing.
+
+    Stop TeddyAI.bat
+        Closes the services and their windows. Nothing else.
+
+    Pull TeddyAI.bat
+        One pull-and-build by double-click: python autopull.py --job auto, i.e.
+        whatever job the clock says (section 3). Does not start the dashboard;
+        needs DATABENTO_API_KEY. The window stays open with the log. From a
+        terminal it forwards arguments: "Pull TeddyAI.bat" --job intraday --hours 2.5
+
+    Replay TeddyAI.bat                       (Friday 2026-09-04 from 06:20 PT at 5x)
+    Replay TeddyAI.bat 2026-09-04 06:20 1    day · from-time PT · speed
+        Re-runs a recorded day through the whole stack, in "real time":
+          - that day's archived RTH plan replaces the sheet on disk (today's
+            trinity.json / trinity.html / ladder_frag.html are backed up to
+            notes\replay-backup and RESTORED when you press Enter)
+          - teddy.py's print feed replays teddychart\cache\trades-<day>.npz
+            on a virtual clock; the strip's Last, the age, time-left and the
+            setup tracker follow that clock
+          - teddychart runs its own --replay of the same day at the same speed
+          - the page opens; the pipeline does NOT run (Rebuild is disabled)
+          - "Rewrite commentary" still works and writes against THAT morning
+            (tape up to the replay clock) through a COPY of build.py, so
+            today's prose is untouched. This is the way to test Opus on a
+            known day.
+        Needs teddychart\cache\trades-<day>.npz; teddychart pulls it the first
+        time you --replay a day (tens of MB, the estimate prints first).
+        Speed: 1 = real time (an RTH session takes 6.5 h), 5 = 78 min, 30 = 13 min.
+
+    Options (run from a terminal, or edit the .bat to add one):
+        powershell -File start_teddy.ps1 -Sim        tick feed + teddychart on synthetic tapes (no key)
+        powershell -File start_teddy.ps1 -NoChart    without teddychart (built-in chart)
+        powershell -File start_teddy.ps1 -NoFeed     don't start live_feed.py
+        powershell -File start_teddy.ps1 -NoOpra     don't fetch the equity open interest
+        powershell -File start_teddy.ps1 -NoBrowser  don't open the browser
+
+    Everything below is what the launcher does for you, plus the things it
+    does not (pulls by hand, diagnostics, one-time setup).
+
+
+----------------------------------------------------------------------------
+1. ONE-TIME SETUP — keys and environment variables
+----------------------------------------------------------------------------
+Keys live in your Windows USER environment. They never leave the machine;
+scripts read them with os.environ. After any setx, CLOSE the terminal and
+open a new one — setx does not reach into windows that are already open.
+
+    setx DATABENTO_API_KEY "db-..."
+        Databento key. Used by autopull.py / databento_pull.py (chain and OI
+        pulls), teddy.py (/api/bars), live_feed.py and teddychart. Already set.
+
+    setx ANTHROPIC_API_KEY "sk-ant-..."
+        Anthropic key. Used ONLY by the command center's "Rewrite commentary"
+        button (command_center.py -> api.anthropic.com). Get one at
+        console.anthropic.com -> API Keys (separate from the claude.ai login;
+        prepaid credit under Billing). ~5 cents per rewrite on Opus 5.
+
+    setx TEDDYCHART_URL http://127.0.0.1:5140
+        Optional. Only if teddychart runs on a port other than 5138.
+
+    setx CC_TICKS sim        (or off, or replay:2026-09-04:06:20:5)
+        Optional. sim = the command center's tick feed runs on a synthetic tape
+        instead of Databento Live; off = no tick feed (chart uses 1-min bars).
+        Unset = real Databento Live trades when the key is present.
+
+    setx CC_COMMENTARY_MODEL claude-opus-5
+        Optional. Which model writes the commentary. Default when unset is
+        claude-opus-5 (~5c/rewrite). Others: claude-sonnet-5 (~2c, weaker
+        structural reads), claude-fable-5-1 (~10c, closest to the hand-written
+        sheets).
+
+    echo $env:ANTHROPIC_API_KEY
+        Check a variable is visible in THIS terminal (PowerShell).
+
+    Graphical alternative: Start -> "Edit environment variables for your
+    account" -> New (top/User list). Never the System list.
+
+
+----------------------------------------------------------------------------
+2. THE DASHBOARD — teddy.py
+----------------------------------------------------------------------------
+    python teddy.py
+        Starts the local dashboard at http://127.0.0.1:5137. Start it FIRST,
+        before any pull: /api/bars is what keeps the 1-minute bar cache fresh,
+        and the plans anchor on the last print from that cache. Leave it
+        running all session. Prints "command center: NOT LOADED -- ..." at
+        startup if command_center.py failed to import.
+
+    http://127.0.0.1:5137          the console (Generate, tracking, journal)
+    http://127.0.0.1:5137/cc       the Command Center (see section 4)
+    http://127.0.0.1:5137/premarket   the current sheet
+
+    python check_ui.py
+        Run after ANY edit to the CONSOLE block in teddy.py. Parses the
+        JavaScript exactly as the browser will see it (catches the backslash
+        trap). Exit 0 = clean. Needs node for the full check; without node it
+        only warns on odd quote counts.
+
+
+----------------------------------------------------------------------------
+3. PULLS AND BUILDS — autopull.py (the pipeline, by hand)
+----------------------------------------------------------------------------
+Every job logs to notes\autopull.log and notes\autopull-status.json and never
+throws. If something looks wrong, read the log first.
+
+    python autopull.py --job auto
+        EASIEST. Picks the job from the local PT clock and logs why:
+        05:00-06:30 premarket · 06:30-13:00 intraday · 13:00-16:00 bars only
+        (settlement still disseminating) · after 16:00 settle then asia ·
+        after 23:00 the OI probe · before 05:00 nothing.
+
+    python autopull.py --job premarket
+        Morning RTH sheet, any time after ~05:30 PT once the previous
+        session's open interest has published. Pulls the final chain for the
+        previous settle, builds the 6.5h plan.
+
+    python autopull.py --job intraday
+        Mid-session rebuild, 06:30-13:00 PT, run as often as you like. Hours
+        left to the 20:00 UTC expiry, anchored on the LAST PRINT, rails cut by
+        the measured profile. Writes its own timestamped sheet and archive
+        row; nothing is overwritten. Manual on purpose — nothing schedules it.
+
+    python autopull.py --job intraday --hours 2.5
+    python autopull.py --job intraday --spot 29480 --hours 3
+    python autopull.py --job intraday --rail-scale 0.5
+        Overrides for a what-if or a rebuild after the bell. --spot forces the
+        reference, --hours the time to expiry, --rail-scale the band.
+
+    python autopull.py --job settle          (16:00 PT)
+    python autopull.py --job asia            (after settle)
+        Evening pair, IN THIS ORDER. settle captures the official settlement
+        bulletin and measures its gap to the final print; asia builds the
+        overnight plan on it. Reversed, asia silently anchors on the final
+        print instead (22.5 points apart on 2026-09-03) — the log says which.
+
+    python autopull.py --job close           (14:05 PT)
+        Refreshes the day's bars only. OI is not out yet.
+
+    python autopull.py --job prelim          (22:10 PT)
+    python autopull.py --job tomorrow        (22:20 PT)
+        Tonight's PRELIMINARY book, then tomorrow's RTH plan built on it.
+        Sheet stamps the book "(preliminary)".
+
+    python autopull.py --job opra-live
+        The equity books for the PREVIOUS settle with the open-interest leg
+        replayed off the OPRA live gateway -- the morning counterpart to
+        --job opra, which pulls today's settle in the late slot. Free estimate
+        first, 200 MB ceiling per root, one root at a time, compare at the end.
+        Declines before 10:30Z and skips any root whose OI is already current
+        for that settle, so a second run in one morning is four file reads.
+        Started by the launcher (step 4 in section 0); never by --job auto.
+
+    python autopull.py --job oi-probe
+        Diagnostic: reports open-interest record counts in candidate windows.
+        Note its count line prints the CONTRACT SUM, not the record count.
+
+    python autopull.py --job <job> --date 2026-09-04
+        Run any job as if today were that date.
+
+    python xladder.py --eq-date 2026-09-03 --session 2026-09-08
+        The four ladders (NQ, QQQ, SPY, SPX+SPXW) on one NQ-strike axis, styled
+        like the sheet's ladder, with a 0DTE/Near/Full toggle. NQ from
+        trinity.json; equities from data\opra\<eq-date>-<root>-trinity.json
+        (opra_ladder.py output). Writes sheets\<session>-xladder.html. Read-only.
+
+After any build the sheet has fresh NUMBERS and the previous PROSE, so the
+staleness banner will be up. Either press "Rewrite commentary" in /cc, or tell
+Claude: "Read HANDOFF.md. Ran the premarket job for the 9/8 RTH session — write
+the commentary and publish the artifact."
+
+
+----------------------------------------------------------------------------
+4. THE COMMAND CENTER — /cc
+----------------------------------------------------------------------------
+    http://127.0.0.1:5137/cc
+        Opening the page runs the pipeline: pull -> verify -> ladder -> build
+        -> (comment, skipped). The loading checklist shows
+        each step; a failed step stops the run and names itself. Then: live
+        chart with flips / rails / setups, game plan with played / in
+        progress / invalidated, the sheet's ladder, widgets.
+
+    Rebuild now   (header button)
+        Re-runs the scripts only. No API call. Free — press it whenever the
+        cache has advanced or you want fresh numbers under the current words.
+
+    Rewrite commentary · <model>   (header button)
+        ONE Anthropic API call. Sends trinity.json + the PROMPT, writes the
+        lead / reading bullets / four cards / VEX note into build.py between
+        the CC: markers, updates NARRATIVE_FOR (clears the staleness banner),
+        rebuilds and reindexes. Button shows "(no key)" if ANTHROPIC_API_KEY
+        is missing. Refuses while the pipeline is running. On failure, read
+        notes\cc.log, then notes\cc-last-reply.txt for what the model sent.
+
+    Chart (full row)
+        teddychart when it is running (footprint, large lots, TPO, volume
+        profile, CVD, depth; its own timeframes 1s…1h, tick and range bars).
+        The toolbar's HEAT / TPO / VP / CVD / LOTS / GAMMA / SETUPS / DEPTH /
+        FIT drive it; ↗ opens it in its own tab. "built-in" switches to the
+        canvas: candles from the print stream (5s 15s 30s 1m 5m 15m, keys
+        1–6) with the sheet's levels, rails, ladder shading and setups.
+        Title chip: "live · NQZ6" = prints streaming, "replaying the day" =
+        catching up, "simulated tape" = CC_TICKS=sim, "1-min bars" = no feed.
+        The Last tile shows the print's age (amber past 60 s, red past 5 min).
+
+    Widgets (drag to reorder, hide/show in the drawer)
+        VEX regime · VEX term structure (per expiry, from the next
+        trinity_db run) · Rail containment · Pipeline log
+
+    Gear icon -> Customize drawer
+        Widgets on/off and drag-to-reorder · bars shown · refresh rate ·
+        "Run the pipeline on open" (default on) · "Also regenerate commentary
+        on open" (default OFF — leave it off; it is an API call every open).
+        "Reset layout" clears the saved arrangement.
+
+    Keyboard:  t  light / dark   r  rebuild now   f  fit levels
+               1 2 3  chart timeframe (1m / 5m / 15m)   Esc  close drawer
+
+    API, for scripting or checking:
+        GET  /cc/api/state          steps, feed, running, model, key present
+        GET  /cc/api/report         everything the page shows, as JSON
+        GET  /cc/api/bars?tf=5      candles, 1/5/15 min
+        GET  /cc/api/ticks          SSE print stream
+        GET  /cc/api/ladder         the sheet's ladder (html + css)
+        POST /cc/api/run            body {"commentary": false}
+        POST /cc/api/commentary     commentary only
+
+    python verify_pull.py
+        The pipeline's "verify" step, runnable alone. Exit 0 = build on it.
+        Checks: chain >= 750 KB (FAIL) · reference inside its bar (warn only —
+        the official settle can legitimately sit outside the 19:59 bar) ·
+        total OI within 40% of the prior business day's chain (FAIL; skipped
+        when there is no prior chain).
+
+
+----------------------------------------------------------------------------
+5. THE INDIVIDUAL SCRIPTS (what autopull calls; useful alone)
+----------------------------------------------------------------------------
+    python databento_pull.py --fetch --date 2026-09-04 --window final --out data
+        Pull the option chain + OI for a settlement date -> data\<date>-chain.json.
+        --settle-only     futures settle bulletin only (no OI), -> -settle.json
+        --window prelim   the evening preliminary window -> data\prelim\
+        --estimate        cost/size estimate without fetching
+        --avail           what the dataset currently has available
+        --probe           what the key streams
+
+    python trinity_db.py --chain data\2026-09-04-chain.json --report-date 2026-09-05 ...
+        Computes trinity.json from a chain. autopull passes the right flags;
+        rarely run by hand.
+
+    python gen.py
+        Renders ladder_frag.html from trinity.json.
+
+    python build.py
+        Renders trinity.html from trinity.json + ladder_frag.html + the prose
+        in build.py. Prints ref / settle / flips and "[STALE NARRATIVE BANNER
+        SHOWN]" when the words no longer match the numbers.
+
+    python archive.py
+        Copies the build to archive\<session>\ and appends the row to
+        archive\history.csv. Runs after build.py.
+
+    python setup_track.py
+        Grades the four setups on trinity.html against the day's bars.
+        --sheet <file>   another sheet     --date YYYY-MM-DD   another day
+        --full-day       whole UTC day, not just RTH
+        --replay         grade every archived sheet
+
+    python backtest.py
+        The rail / node / confluence backtest (60 sessions).
+
+    python session_scale.py [2026-09-04T17:30]
+        Prints the rest-of-session variance scale for a UTC moment.
+
+
+----------------------------------------------------------------------------
+6. LIVE FEED AND CHART
+----------------------------------------------------------------------------
+    python live_feed.py
+        Streams NQ into data\bars\<utc-day>.json and writes feed_status.json.
+        While it is alive /api/bars steps aside and lets it own the file.
+
+    THE OPRA "LIVE FEED" IS NOT A STREAM. There is no equity equivalent of
+    live_feed.py. On OPRA, "live" means one thing: the OPEN-INTEREST leg taken
+    from the live gateway instead of the historical endpoint, because OPRA
+    publishes OI once, at 10:30 UTC on D+1, and Databento's historical endpoint
+    serves complete days only -- so before 17:00 PT a gateway replay is the only
+    way to read this morning's figure. It is a one-shot that ends itself 8 s
+    after the last record (240 s cap), not a process that stays up.
+
+    python opra_live_probe.py
+        The gateway check: does the key cover OPRA live, and does the replay
+        carry the day's stat-9 records. Free, ~30 s, downloads nothing.
+
+    python opra_pull.py --fetch --date <prev session> --roots SPX,SPXW,QQQ,SPY --live-oi
+        The pull itself. --date is the last COMPLETE session, because only the
+        OI leg comes off the gateway -- the price legs are still historical, so
+        this is a full fetch (~320 MB over four roots, 20+ minutes with the
+        American pass). Refused, empty, or under 100 contracts falls back to the
+        historical window and then to the STALE stamp; whichever leg won is
+        written into the chain's `oi_vintage`.
+
+    python autopull.py --job opra-live
+        The same for all four roots with the estimate, the ceiling, the 10:30Z
+        window check and the compare -- and it skips any root whose OI is
+        already current for that settle. This is what the launcher starts,
+        beside live_feed.py (step 4 in section 0). The run is in the autopull
+        log under notes.
+
+    teddychart\run.bat            live chart at http://127.0.0.1:5138
+    teddychart\run-sim.bat        same, on a synthetic tape, no key needed
+    python teddychart\server.py --probe        what the key streams
+    python teddychart\server.py --book-schema mbp-1     best bid/ask (default)
+    python teddychart\server.py --no-book               no depth at all
+    python teddychart\test\shot.py             headless render check (playwright)
+        Run live_feed.py AND teddychart — the chart does not write the cache.
+
+
+----------------------------------------------------------------------------
+7. THE DISCORD GAME PLAN BOT — gameplan_bot.py
+----------------------------------------------------------------------------
+The unattended path: Databento -> the sheet -> the model -> a Discord channel.
+Nobody reads the output before the channel does, so every gate is on the way in
+(section 7c). One run is one session's plan.
+
+    python gameplan_bot.py --job premarket --dry-run
+        THE FIRST THING TO RUN. Does the whole pipeline for real -- the pull,
+        the equity compare, the build, the Anthropic call -- and then RENDERS
+        the post instead of sending it. Prints what the channel would see and
+        writes notes\discord-preview.json. Costs a pull and a rewrite; sends
+        nothing.
+
+    python gameplan_bot.py --job premarket
+        The real thing. Same pipeline, then three messages to the channel.
+
+    python gameplan_bot.py --job auto
+        Whatever job the clock says, same as autopull --job auto.
+        Jobs that carry a plan: premarket · intraday · asia · tomorrow · holiday.
+
+    python gameplan_bot.py --post-only --dry-run
+        Skip the pipeline; render the sheet already on disk. Free, instant,
+        and the fastest way to see a formatting change.
+
+    python gameplan_bot.py --post-only
+        Post the sheet already on disk -- e.g. after a hand-written commentary,
+        or after "Rewrite commentary" in /cc.
+
+    python gameplan_bot.py --job intraday --no-post
+        Run the whole pipeline and write the sheet; send nothing. What the
+        scheduler registers with -NoPost.
+
+    Other flags:
+        --opra use|pull|none  use (default) compares whatever equity chains are
+                              already on disk; pull fetches them first (minutes,
+                              hundreds of MB -- normally the 4:10 PM opra entry's
+                              job); none skips the cross-reference entirely
+        --no-commentary       do not call the model. The sheet stays stale, so
+                              nothing is posted -- this is a diagnostic, not a
+                              cheaper post
+        --force               post even if this exact plan already went out
+        --attach-sheet        attach the dated HTML sheet to the last message
+        --date --hours --spot --rail-scale     passed through to autopull
+        --mention '<@&123>'   override DISCORD_MENTION for this run
+
+    Logs:  notes\gameplan.log   every step, ok or FAILED, with the reason
+           notes\gameplan-status.json   the last run, step by step
+           notes\discord.log   the posting leg alone
+
+7a. THE POST ITSELF — discord_post.py
+    THE DEFAULT IS THE CARDS, RENDERED. Reformatting Basilisk into Discord
+    embeds loses the card grid and the type, so the channel gets a PNG of the
+    real page instead. Two messages:
+        1. a one-line text header (date, reference, flips, rails, net gamma,
+           book) + the GAMEPLAN image: the four cards 2x2, entries, structural
+           stops, T1-T3 with their R multiples, each card's before-this-plan line
+        2. the equity cross-reference: SPX / SPXW / SPY / QQQ / NQ, dealer gamma
+           within 1% and each book's 0DTE flip, from the OPRA compare. A text
+           embed -- the sheet has no section for it. --no-opra drops it
+
+    The cards alone: they are what the channel opens the post for, and three
+    images of one plan is a wall nobody scrolls. The levels a masthead image
+    would have carried are in the header TEXT on the same message, which also
+    makes them searchable, visible in a phone's notification preview and
+    copyable. An image is none of those things.
+
+    CONSEQUENCE: the sheet's CAVEAT block lives in the overview section and so
+    does not reach the channel. Staleness is already covered -- a stale sheet is
+    refused outright (7c) -- but a caveat drawn for another reason (a stale
+    reference, a preliminary book) stays on the sheet only.
+
+    python discord_post.py --dry-run          render, send nothing
+    python discord_post.py                    post the current sheet
+    python discord_post.py --parts overview,gameplan,reading    the prose too
+    python discord_post.py --parts all        every section, the ladder included
+    python discord_post.py --format embeds    Discord embeds, no pictures
+    python discord_post.py --format both      the embeds, then the pictures
+    python discord_post.py --no-opra          drop the equity cross-reference
+    python discord_post.py --attach-sheet     ...and attach the dated HTML sheet
+    python discord_post.py --force            repost a plan that already went
+
+    Numbers AND prose come from command_center.normalize() -- the same function
+    the /cc page renders from. There is deliberately no second parser: two of
+    them would eventually disagree about what the plan says.
+
+7a-i. THE IMAGES — sheet_image.py
+    python sheet_image.py --list              the sheet's sections
+    python sheet_image.py                     render the default (gameplan)
+    python sheet_image.py --parts all         everything, ladder included
+    python sheet_image.py --parts gameplan --width 900 --scale 2
+
+    Headless Chrome or Edge, whichever is installed -- NOTHING to install, no
+    playwright, no selenium. trinity.html is one self-contained document, so a
+    section renders on its own from the sheet's own preamble and .wrap: same
+    CSS, same layout. Pillow trims each capture to its content.
+        TEDDY_BROWSER   point at a browser if neither is on the usual path
+    A render that fails for any reason falls back to the embed post. A plan that
+    goes out looking plainer beats a plan that does not go out.
+    The webfonts come from fonts.googleapis.com; offline, the sheet renders in
+    the fallback stack -- different, still correct.
+
+7b. KEYS  (setx, then a NEW terminal — see section 1)
+    setx DISCORD_WEBHOOK_URL "https://discord.com/api/webhooks/<id>/<token>"
+        The whole configuration. Channel -> Edit Channel -> Integrations ->
+        Webhooks -> New Webhook -> Copy Webhook URL. No bot in the server, no
+        gateway process, nothing to keep running.
+
+    setx DISCORD_BOT_TOKEN "..."   +   setx DISCORD_CHANNEL_ID "123..."
+        The alternative, if the post must come from a real bot user. Same REST
+        endpoint, so still no discord.py and still nothing to keep alive. The
+        bot needs View Channel + Send Messages (+ Attach Files for --attach-sheet).
+        The webhook wins when both are set.
+
+    setx DISCORD_MENTION "<@&1234567890>"      optional role ping, first message only
+    setx DISCORD_USERNAME "TeddyAI"            optional webhook display name
+
+    The Discord URL and token are secrets: they are in the user environment and
+    nowhere in the repo. Anyone holding the webhook URL can post to the channel.
+
+7c. WHAT STOPS A POST
+    - autopull did nothing (outside its window, no new book)
+    - verify_pull failed
+    - the commentary could not be rewritten -- a sheet with fresh numbers under
+      words written for a different book must never reach a public channel
+    - this exact plan already went out (fingerprint: session, pricing instant,
+      the lead, and every card's entry / stop / targets)
+    A half-sent post RESUMES on the next run rather than duplicating; the ledger
+    is notes\discord-posted.json.
+
+    Nothing here retries a paid Databento pull. A failed run is a failed run and
+    the next scheduled slot picks it up.
+
+
+----------------------------------------------------------------------------
+8. SCHEDULE (Windows Task Scheduler, weekdays, local PT)
+----------------------------------------------------------------------------
+    powershell -ExecutionPolicy Bypass -File schedule_gameplan.ps1 -List
+        What is registered and when each entry next runs.
+
+    powershell -ExecutionPolicy Bypass -File schedule_gameplan.ps1 -NoCommentary
+        Register everything with NO Anthropic call anywhere: the data pulls and
+        the sheets build on schedule, nothing is billed, and nothing is posted
+        (a sheet with no fresh commentary is stale by definition, and the stale
+        gate refuses it). This is the holding state when the commentary is
+        written some other way -- by hand, or from a Claude session. Post it
+        afterwards with: python gameplan_bot.py --post-only
+
+    powershell -ExecutionPolicy Bypass -File schedule_gameplan.ps1 -NoPost
+        Register everything, with the plans building but NOT posting. Still
+        calls the model -- use -NoCommentary if the point is to not be billed.
+        Run a week like this and read notes\gameplan.log before the channel
+        sees anything.
+
+    powershell -ExecutionPolicy Bypass -File schedule_gameplan.ps1
+        Register everything, posting live. Safe to re-run: -Force replaces.
+
+    powershell -ExecutionPolicy Bypass -File schedule_gameplan.ps1 -Intraday
+        ...and add mid-session refreshes at 7:30, 9:30 and 11:30. OFF by default:
+        each one is a Databento pull AND an Anthropic call.
+
+    powershell -ExecutionPolicy Bypass -File schedule_gameplan.ps1 -Remove
+        Unregister the lot.
+
+    What it registers, under the \TeddyAI\ task folder:
+        data      2:10 PM  close       python autopull.py --job close
+        data      4:00 PM  settle      python autopull.py --job settle
+        data      4:10 PM  opra        python autopull.py --job opra
+        data     10:15 PM  prelim      python autopull.py --job prelim
+        plan      6:05 AM  premarket   python gameplan_bot.py --job premarket
+        plan      5:15 PM  asia        python gameplan_bot.py --job asia
+        plan     10:20 PM  tomorrow    python gameplan_bot.py --job tomorrow
+
+    Every task runs as YOU, only while you are logged on. That is deliberate:
+    the API keys live in your USER environment and a task running as SYSTEM
+    would not see them. pythonw, so no console window opens; the logs are in
+    notes\ either way.
+
+    Start-ScheduledTask -TaskPath '\TeddyAI\' -TaskName 'gameplan-premarket'
+        Run one now, exactly as the scheduler would.
+
+    schtasks /Query /FO LIST /V | findstr /I "teddy autopull gameplan"
+        The same thing without PowerShell.
+
+
+----------------------------------------------------------------------------
+9. WHERE THINGS ARE
+----------------------------------------------------------------------------
+    trinity.json              every number on the sheet
+    trinity.html              the rendered sheet (prose lives in build.py)
+    ladder_frag.html          the ladder, from gen.py
+    data\<date>-chain.json    final chains        data\prelim\   preliminary
+    data\opra\<date>-compare.json   the five books, from opra_compare.py
+    data\bars\<utc-day>.json  1-minute bar cache (UTC calendar days)
+    notes\autopull.log        every job's log      notes\autopull-status.json
+    notes\gameplan.log        the Discord pipeline notes\gameplan-status.json
+    notes\discord.log         the posting leg      notes\discord-posted.json
+    notes\discord-preview.json   the last --dry-run render
+    notes\shots\            the section PNGs the last post attached
+    notes\cc.log              command center failures
+    notes\cc-last-reply.txt   the model's last raw commentary reply (read this
+                              when "Rewrite commentary" fails)
+    archive\history.csv       one row per build    archive\<session>\
+    sheets\                   dated sheets
+    HANDOFF.md                the method, traps, and history — read first
+    DISCORD.md                setting up the channel, start to finish
+    CC_BUILD_CHECKLIST.md     command center build status, section by section
+    COMMANDS.txt              this file
+
+
+----------------------------------------------------------------------------
+TRAPS (don't re-learn)
+----------------------------------------------------------------------------
+- Bar files are UTC days; the PT date stops matching at 17:00 PT.
+- setx needs a NEW terminal. Task Scheduler runs see User variables only if
+  the task runs as your user.
+- utf-8 on every read/write; no backslashes inside CONSOLE; %-d breaks on
+  Windows; verify the rendered artifact, not the source.
+- Databento historical trails the clock 10-25 min on a healthy day. "Stale"
+  means over 30-60 min, not 5.
+- A Discord webhook URL is a bearer credential. Anyone holding it can post to
+  the channel as TeddyAI. It belongs in the user environment, never in the repo,
+  never in a screenshot of a terminal.
+- A post is public and cannot be quietly corrected. A sheet whose numbers are
+  newer than its words is refused by discord_post.py on purpose -- if you reach
+  for --allow-stale, read the caveat block first and decide you meant it.

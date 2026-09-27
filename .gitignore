@@ -1,0 +1,51 @@
+# --- Large data / runtime artifacts (never commit) ---
+# OPRA books are 11 GB locally and rebuilt by opra_pull.py
+data/
+backups/
+archive/
+# notes/* rather than notes/, because git cannot re-include a path whose PARENT directory is
+# excluded -- with `notes/` the negation below silently did nothing. (2026-09-17)
+notes/*
+# The prose is the only record of how a sheet was written and ranked, and CARD_RULES.md
+# points at it for worked examples, so it is tracked.
+!notes/prose/
+teddychart/cache/
+
+# --- Dated manual backups (superseded by git history) ---
+*.bak-*
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+*.pyc
+.pytest_cache/
+.venv/
+venv/
+*.egg-info/
+
+# --- Claude Code worktrees (but NOT the skills) ---
+# .claude/worktrees holds FULL copies of this repo, one per session: 209 MB and 2,746
+# files on 2026-09-17, and committing it would nest the repo inside itself.
+# .claude/skills is 40 KB of source -- the /build and /read-tape workflow -- and is tracked.
+.claude/worktrees/
+
+# --- Logs, archives, local state ---
+# levels_live.py rewrites this every few seconds while the chart is open
+levels_live.json
+*.log
+*.zip
+*.db
+*.sqlite
+*.sqlite3
+
+# --- Secrets / local env ---
+.env
+.env.*
+*.key
+*.pem
+credentials.json
+
+# --- OS ---
+Thumbs.db
+desktop.ini
+.DS_Store
